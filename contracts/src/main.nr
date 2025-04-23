@@ -43,6 +43,105 @@ pub contract Lending {
     fn constructor() {}
 
     #[private]
+    fn repay_private(
+        from: AztecAddress,
+        amount: u128,
+        nonce: Field,
+        secret: Field,
+        on_behalf_of: Field,
+        market_id: Field,
+        asset_address: AztecAddress,
+    ) {
+        let on_behalf_of =
+            compute_identifier(secret, on_behalf_of, context.msg_sender().to_field());
+        // docs:start:private_call
+        let _ = Token::at(asset_address).transfer_to_public(from, context.this_address(), amount, nonce).call(&mut context);
+        // docs:end:private_call
+        let _ = Lending::at(context.this_address())
+            ._repay(AztecAddress::from_field(on_behalf_of), amount, market_id, asset_address)
+            .enqueue(&mut context);
+    }
+
+    #[public]
+    fn repay_public(amount: u128, nonce: Field, owner: AztecAddress, market_id: Field, asset_address: AztecAddress) {
+        let _ = Token::at(asset_address).transfer_in_public(context.msg_sender(), context.this_address(), amount, nonce).call(&mut context);
+        let _ = Lending::at(context.this_address())._repay(owner, amount, market_id, asset_address).call(
+            &mut context,
+        );
+    }
+
+    #[public]
+    #[internal]
+    fn _repay(owner: AztecAddress, amount: u128, market_id: Field, asset_address: AztecAddress) {
+        let asset_loc = storage.market_assets.at(market_id).at(asset_address);
+        let asset: Asset = asset_loc.read();
+        assert(asset.asset_address == asset_address, "Invalid asset or market id");
+
+        Lending::at(context.this_address()).update_accumulators(market_id, asset_address).call(&mut context);
+
+        let scaled_user_borrowed_amount_loc = storage.scaled_borrowed_assets.at(market_id).at(asset_address).at(owner);
+        let scaled_user_borrowed_amount: u128 = scaled_user_borrowed_amount_loc.read();
+        let borrow_accumulator_loc = storage.borrow_accumulators.at(market_id).at(asset_address);
+        let borrow_accumulator: Accumulator = borrow_accumulator_loc.read();
+        let scaled_amount = (amount * 1000000000 as u128) / borrow_accumulator.value;
+
+        assert(scaled_user_borrowed_amount >= scaled_amount, "Insufficient balance");
+        scaled_user_borrowed_amount_loc.write(scaled_user_borrowed_amount - scaled_amount);
+
+        let scaled_total_borrowed_asset_loc = storage.scaled_total_borrowed_assets.at(market_id).at(asset_address);
+        let scaled_total_borrowed_asset: u128 = scaled_total_borrowed_asset_loc.read();
+        scaled_total_borrowed_asset_loc.write(scaled_total_borrowed_asset - scaled_amount);
+    }
+
+     #[private]
+    fn borrow_private(secret: Field, to: AztecAddress, amount: u128, market_id: Field, asset_address: AztecAddress) {
+        let on_behalf_of = compute_identifier(secret, 0, context.msg_sender().to_field());
+        let _ = Lending::at(context.this_address())
+            ._borrow(AztecAddress::from_field(on_behalf_of), to, amount, market_id, asset_address)
+            .enqueue(&mut context);
+    }
+
+    #[public]
+    fn borrow_public(to: AztecAddress, amount: u128, market_id: Field, asset_address: AztecAddress) {
+        let _ = Lending::at(context.this_address())._borrow(context.msg_sender(), to, amount, market_id, asset_address).call(
+            &mut context,
+        );
+    }
+
+    #[public]
+    #[internal]
+    fn _borrow(owner: AztecAddress, to: AztecAddress, amount: u128, market_id: Field, asset_address: AztecAddress) {
+        let asset_loc = storage.market_assets.at(market_id).at(asset_address);
+        let asset: Asset = asset_loc.read();
+
+        assert(asset.is_borrowable, "Asset is not borrowable");
+
+        let total_collateral_value: u128 = Lending::at(context.this_address())._compute_total_collateral_value(market_id, owner).call(&mut context);
+        
+        let total_min_collateral_value = Lending::at(context.this_address())._compute_total_min_collateral_value(market_id, owner).call(&mut context);
+
+        let borrow_price = PriceFeed::at(asset.oracle).get_price(0).view(&mut context).price;
+        let min_collateral_for_borrow = (amount * borrow_price * 10000 as u128) / (asset.loan_to_value * 1000000000 as u128);
+
+        assert(total_min_collateral_value + min_collateral_for_borrow <= total_collateral_value, "Insufficient collateral");
+        
+        let scaled_user_borrowed_amount_loc = storage.scaled_borrowed_assets.at(market_id).at(asset_address).at(owner);
+        let scaled_user_borrowed_amount: u128 = scaled_user_borrowed_amount_loc.read();
+        let borrow_accumulator_loc = storage.borrow_accumulators.at(market_id).at(asset_address);
+        let borrow_accumulator: Accumulator = borrow_accumulator_loc.read();
+        let scaled_amount = (amount * 1000000000 as u128) / borrow_accumulator.value;
+        scaled_user_borrowed_amount_loc.write(scaled_user_borrowed_amount + scaled_amount);
+
+        let scaled_total_borrowed_asset_loc = storage.scaled_total_borrowed_assets.at(market_id).at(asset_address);
+        let scaled_total_borrowed_asset: u128 = scaled_total_borrowed_asset_loc.read();
+        scaled_total_borrowed_asset_loc.write(scaled_total_borrowed_asset + scaled_amount);
+        
+        let _ = Token::at(asset_address)
+            .transfer_in_public(context.this_address(), to, amount, 0)
+            .call(&mut context);
+    }
+
+    #[private]
     fn withdraw_private(secret: Field, to: AztecAddress, amount: u128, market_id: Field, collateral_asset: AztecAddress) {
         let on_behalf_of = compute_identifier(secret, 0, context.msg_sender().to_field());
         Lending::at(context.this_address())
@@ -74,13 +173,58 @@ pub contract Lending {
         let user_deposited_amount = (scaled_user_deposited_amount * deposit_accumulator.value) / 1000000000 as u128 ;
         assert(user_deposited_amount >= amount, "Insufficient balance");
 
+        let total_collateral_value: u128 = Lending::at(context.this_address())._compute_total_collateral_value(market_id, owner).call(&mut context);
+
+        let total_min_collateral_value = Lending::at(context.this_address())._compute_total_min_collateral_value(market_id, owner).call(&mut context);
+
         let collateral_price = PriceFeed::at(asset.oracle).get_price(0).view(&mut context).price;
-        
+        let withdraw_amount_value = (amount * collateral_price) / 10000 as u128;
+
+        let total_collateral_value_after_withdraw = total_collateral_value - withdraw_amount_value;
+
+        assert(total_min_collateral_value <= total_collateral_value_after_withdraw, "Insufficient collateral");
+
+        let scaled_withdraw_amount = (amount * 1000000000 as u128) / deposit_accumulator.value
+        scaled_user_deposited_amount_loc.write(scaled_user_deposited_amount - scaled_withdraw_amount);
+
+        let _ = Token::at(collateral_asset)
+            .transfer_in_public(context.this_address(), to, amount, 0)
+            .call(&mut context);
+    }
+
+    #[public]
+    #[internal]
+    fn _compute_total_collateral_value(market_id: Field, owner: AztecAddress) -> u128 {
+        let mut total_collateral_value: u128 = 0 as u128;
+
         let market_assets_list_len_loc = storage.market_assets_list_len.at(market_id);
         let market_assets_list_len: u64 = market_assets_list_len_loc.read();
         let market_assets_list_loc = storage.market_assets_list.at(market_id);
 
-        let mut min_collateral_value = 0 as u128;
+        for i in 0..market_assets_list_len {
+            let market_asset_loc = market_assets_list_loc.at(i);
+            let market_asset: AztecAddress = market_asset_loc.read();
+            let collateral_asset_loc = storage.market_assets.at(market_id).at(market_asset);
+            let collateral_asset: Asset = collateral_asset_loc.read();
+            let collateral_price = PriceFeed::at(collateral_asset.oracle).get_price(0).view(&mut context).price;
+            let scaled_collateral_amount_loc = storage.scaled_deposited_assets.at(market_id).at(market_asset).at(owner);
+            let scaled_collateral_amount: u128 = scaled_collateral_amount_loc.read();
+            let deposit_accumulator_loc = storage.deposit_accumulators.at(market_id).at(market_asset);
+            let deposit_accumulator: Accumulator = deposit_accumulator_loc.read();
+            let collateral_amount = (scaled_collateral_amount * deposit_accumulator.value) / 1000000000 as u128;
+            total_collateral_value += (collateral_amount * collateral_price) / 10000 as u128;
+        }
+        total_collateral_value
+    }
+
+    #[public]
+    #[internal]
+    fn _compute_total_min_collateral_value(market_id: Field, owner: AztecAddress) -> u128 {
+        let mut min_collateral_value: u128 = 0 as u128;
+
+        let market_assets_list_len_loc = storage.market_assets_list_len.at(market_id);
+        let market_assets_list_len: u64 = market_assets_list_len_loc.read();
+        let market_assets_list_loc = storage.market_assets_list.at(market_id);
 
         for i in 0..market_assets_list_len {
             let market_asset_loc = market_assets_list_loc.at(i);
@@ -99,16 +243,7 @@ pub contract Lending {
                 min_collateral_value += (user_borrowed_amount * borrow_price * 10000 as u128) / debt_asset.loan_to_value;
             }
         }
-        let collateral_amount_after_withdraw = user_deposited_amount - amount;
-        let min_collateral_to_cover_debt = min_collateral_value / collateral_price;
-
-        assert(min_collateral_to_cover_debt <= collateral_amount_after_withdraw, "Insufficient collateral");
-        let scaled_withdraw_amount = (amount * 1000000000 as u128) / deposit_accumulator.value
-        scaled_user_deposited_amount_loc.write(scaled_user_deposited_amount - scaled_withdraw_amount);
-
-        let _ = Token::at(collateral_asset)
-            .transfer_in_public(context.this_address(), to, amount, 0)
-            .call(&mut context);
+        min_collateral_value / 1000000000 as u128
     }
 
     #[private]
@@ -248,7 +383,7 @@ pub contract Lending {
         if !(time_delta == 0) {
             let precision = 1000000000 as u128; // 10**9
             let utilization_rate = _compute_utilization_rate(market_id, asset_address, precision, deposit_accumulator, borrow_accumulator);
-            let borrow_rate_per_year = _compute_borrow_rate(market_id, asset_address, asset, utilization_rate, precision);
+            let borrow_rate_per_year = _compute_borrow_rate(asset, utilization_rate, precision);
             // TODO: let supply_rate_per_year = borrow_rate_per_year * utilization_rate * (1 - reserve_factor);
             let supply_rate_per_year = (borrow_rate_per_year * utilization_rate) / precision;
 
@@ -279,7 +414,7 @@ pub contract Lending {
 
     #[public]
     #[internal]
-    fn _compute_borrow_rate(market_id: Field, asset_address: AztecAddress, asset: Asset, utilization_rate: u128, precision: u128) -> u128 {
+    fn _compute_borrow_rate(asset: Asset, utilization_rate: u128, precision: u128) -> u128 {
         let mut rate = 0 as u128;
         if utilization_rate < asset.optimal_utilization_rate {
             // rate = base + utilization * slope1 / optimal No base for now
@@ -292,6 +427,21 @@ pub contract Lending {
         rate
     }
 
-
-
+    #[utility]
+    #[view]
+    unconstrained fn get_position(owner: AztecAddress, market_id: Field, asset_address: AztecAddress) -> pub Position {
+        let asset_loc = storage.market_assets.at(market_id).at(asset_address);
+        let asset: Asset = asset_loc.read();
+        let scaled_user_deposited_asset_loc = storage.scaled_deposited_assets.at(market_id).at(asset_address).at(owner);
+        let scaled_user_deposited_asset: u128 = scaled_user_deposited_asset_loc.read();
+        let deposit_accumulator_loc = storage.deposit_accumulators.at(market_id).at(asset_address);
+        let deposit_accumulator: Accumulator = deposit_accumulator_loc.read();
+        let collateral = (scaled_user_deposited_asset * deposit_accumulator.value) / 1000000000 as u128;
+        let scaled_user_borrowed_amount_loc = storage.scaled_borrowed_assets.at(market_id).at(asset_address).at(owner);
+        let scaled_user_borrowed_amount: u128 = scaled_user_borrowed_amount_loc.read();
+        let borrow_accumulator_loc = storage.borrow_accumulators.at(market_id).at(asset_address);
+        let borrow_accumulator: Accumulator = borrow_accumulator_loc.read();
+        let debt = (scaled_user_borrowed_amount * borrow_accumulator.value) / 1000000000 as u128;
+        Position { collateral, scaled_debt: scaled_user_borrowed_amount debt }
+    }
 }
