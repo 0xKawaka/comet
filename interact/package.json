@@ -1,0 +1,18 @@
+{
+  "dependencies": {
+    "@aztec/accounts": "^0.85.0",
+    "@aztec/aztec.js": "^0.85.0",
+    "@aztec/noir-contracts.js": "^0.85.0",
+    "@aztec/types": "^0.76.4"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  },
+  "scripts": {
+    "deploy": "tsx src/deploy.ts"
+  }
+}

@@ -34,7 +34,7 @@ import {
   type U128Like,
   type WrappedFieldLike,
 } from '@aztec/aztec.js';
-import LendingContractArtifactJson from '../../target/lending_contract-Lending.json' assert { type: 'json' };
+import LendingContractArtifactJson from './lending_contract-Lending.json' assert { type: 'json' };
 export const LendingContractArtifact = loadContractArtifact(LendingContractArtifactJson as NoirCompiledContract);
 
 

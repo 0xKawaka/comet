@@ -1,0 +1,103 @@
+/**
+ * Format a token amount to a human-readable string with specified decimals
+ */
+export const formatTokenAmount = (amount: bigint, decimals: number): string => {
+  if (amount === 0n) return '0';
+  // Ensure amount is a BigInt
+  const amountBigInt = BigInt(amount.toString());
+  // Ensure decimals is a number
+  const decimalsNum = Number(decimals);
+  
+  const divisor = 10n ** BigInt(decimalsNum);
+  const integerPart = amountBigInt / divisor;
+  const fractionalPart = amountBigInt % divisor;
+  
+  let fractionalString = fractionalPart.toString();
+  // Pad with leading zeros if needed
+  while (fractionalString.length < decimalsNum) {
+    fractionalString = '0' + fractionalString;
+  }
+  
+  // Remove trailing zeros
+  fractionalString = fractionalString.replace(/0+$/, '');
+  
+  return fractionalString.length > 0 
+    ? `${integerPart}.${fractionalString}` 
+    : integerPart.toString();
+};
+
+/**
+ * Format a USD value with specified decimals
+ */
+export const formatUsdValue = (amount: bigint, decimals: number): string => {
+  return formatTokenAmount(amount, decimals);
+};
+
+/**
+ * Parse a string token amount to bigint with specified decimals
+ */
+export const parseTokenAmount = (amount: string, decimals: number): bigint => {
+  if (!amount || amount === '') return 0n;
+  
+  const parts = amount.split('.');
+  const integerPart = parts[0] || '0';
+  let fractionalPart = parts[1] || '';
+  
+  if (fractionalPart.length > decimals) {
+    fractionalPart = fractionalPart.substring(0, decimals);
+  } else {
+    while (fractionalPart.length < decimals) {
+      fractionalPart += '0';
+    }
+  }
+  
+  return BigInt(integerPart + fractionalPart);
+};
+
+/**
+ * Calculate LTV (Loan to Value) ratio
+ */
+export const calculateLTV = (borrowedValue: bigint, collateralValue: bigint): number => {
+  if (collateralValue === 0n) return 0;
+  return Number((borrowedValue * 100n) / collateralValue) / 100;
+};
+
+/**
+ * Calculate health factor based on borrowed value, max LTV, and collateral value
+ */
+export const calculateHealthFactor = (borrowedValue: bigint, maxLtv: bigint, collateralValue: bigint): number => {
+  if (borrowedValue === 0n) return Infinity;
+  return Number((collateralValue * maxLtv) / borrowedValue) / 10000;
+};
+
+/**
+ * Get CSS class for health factor
+ */
+export const getHealthFactorClass = (healthFactor: number): string => {
+  if (healthFactor === Infinity || healthFactor > 2) return 'health-factor-safe';
+  if (healthFactor > 1.05) return 'health-factor-warning';
+  return 'health-factor-danger';
+};
+
+/**
+ * Format utilization rate
+ */
+export const formatUtilizationRate = (totalBorrowed: bigint, totalSupplied: bigint): string => {
+  if (totalSupplied === 0n) return '0%';
+  return `${Number((totalBorrowed * 100n) / totalSupplied).toFixed(2)}%`;
+};
+
+/**
+ * Format percentage value
+ */
+export const formatPercentage = (value: number): string => {
+  return `${value.toFixed(2)}%`;
+};
+
+/**
+ * Format health factor
+ */
+export const formatHealthFactor = (healthFactor: number): string => {
+  if (healthFactor === Infinity) return '∞';
+  return healthFactor.toFixed(2);
+}; 

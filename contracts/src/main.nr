@@ -1,20 +1,16 @@
 mod asset;
 mod position;
-mod interest_math;
 mod helpers;
 mod accumulator;
 
 use dep::aztec::macros::aztec;
-use std::ops::{Div, Mul, Add, Sub};
 
 #[aztec]
 pub contract Lending {
     use dep::aztec::prelude::{AztecAddress, Map, PublicMutable};
-    use std::ops::{Div, Mul, Add, Sub};
 
     use crate::asset::Asset;
-    use crate::helpers::{compute_identifier, covered_by_collateral, debt_updates, debt_value};
-    use crate::interest_math::compute_multiplier;
+    use crate::helpers::{compute_identifier};
     use crate::position::Position;
     use dep::price_feed::PriceFeed;
     use dep::token::Token;
@@ -184,7 +180,7 @@ pub contract Lending {
 
         assert(total_min_collateral_value <= total_collateral_value_after_withdraw, "Insufficient collateral");
 
-        let scaled_withdraw_amount = (amount * 1000000000 as u128) / deposit_accumulator.value
+        let scaled_withdraw_amount = (amount * 1000000000 as u128) / deposit_accumulator.value;
         scaled_user_deposited_amount_loc.write(scaled_user_deposited_amount - scaled_withdraw_amount);
 
         let _ = Token::at(collateral_asset)
@@ -407,7 +403,7 @@ pub contract Lending {
 
         let total_deposited_assets = (scaled_total_deposited_asset * deposit_accumulator.value) / precision;
         let total_borrowed_assets = (scaled_total_borrowed_asset * borrow_accumulator.value) / precision;
-        let utilization_rate = total_borrowed_assets * precision / total_deposited_assets;
+        let utilization_rate = (total_borrowed_assets * precision) / total_deposited_assets;
 
         utilization_rate
     }
@@ -418,20 +414,17 @@ pub contract Lending {
         let mut rate = 0 as u128;
         if utilization_rate < asset.optimal_utilization_rate {
             // rate = base + utilization * slope1 / optimal No base for now
-            rate = utilization_rate * asset.under_optimal_slope / asset.optimal_utilization_rate;
+            rate = (utilization_rate * asset.under_optimal_slope) / asset.optimal_utilization_rate;
         } else {
             // rate = base +slope1 + (utilization - optimal) * slope2 / (1 - optimal) No base for now
             rate = asset.under_optimal_slope + (utilization_rate - asset.optimal_utilization_rate) * asset.over_optimal_slope / (precision - asset.optimal_utilization_rate);
         }
-
         rate
     }
 
     #[utility]
     #[view]
     unconstrained fn get_position(owner: AztecAddress, market_id: Field, asset_address: AztecAddress) -> pub Position {
-        let asset_loc = storage.market_assets.at(market_id).at(asset_address);
-        let asset: Asset = asset_loc.read();
         let scaled_user_deposited_asset_loc = storage.scaled_deposited_assets.at(market_id).at(asset_address).at(owner);
         let scaled_user_deposited_asset: u128 = scaled_user_deposited_asset_loc.read();
         let deposit_accumulator_loc = storage.deposit_accumulators.at(market_id).at(asset_address);
@@ -442,6 +435,26 @@ pub contract Lending {
         let borrow_accumulator_loc = storage.borrow_accumulators.at(market_id).at(asset_address);
         let borrow_accumulator: Accumulator = borrow_accumulator_loc.read();
         let debt = (scaled_user_borrowed_amount * borrow_accumulator.value) / 1000000000 as u128;
-        Position { collateral, scaled_debt: scaled_user_borrowed_amount debt }
+        Position { collateral, scaled_debt:scaled_user_borrowed_amount, debt }
+    }
+
+    #[utility]
+    #[view]
+    unconstrained fn get_total_deposited_assets(market_id: Field, asset_address: AztecAddress) -> u128 {
+        let scaled_total_deposited_asset = storage.scaled_total_deposited_assets.at(market_id).at(asset_address).read();
+        let deposit_accumulator_loc = storage.deposit_accumulators.at(market_id).at(asset_address);
+        let deposit_accumulator: Accumulator = deposit_accumulator_loc.read();
+        let total_deposited_assets = (scaled_total_deposited_asset * deposit_accumulator.value) / 1000000000 as u128;
+        total_deposited_assets
+    }
+
+    #[utility]
+    #[view]
+    unconstrained fn get_total_borrowed_assets(market_id: Field, asset_address: AztecAddress) -> u128 {
+        let scaled_total_borrowed_asset = storage.scaled_total_borrowed_assets.at(market_id).at(asset_address).read();
+        let borrow_accumulator_loc = storage.borrow_accumulators.at(market_id).at(asset_address);
+        let borrow_accumulator: Accumulator = borrow_accumulator_loc.read();
+        let total_borrowed_assets = (scaled_total_borrowed_asset * borrow_accumulator.value) / 1000000000 as u128;
+        total_borrowed_assets
     }
 }
