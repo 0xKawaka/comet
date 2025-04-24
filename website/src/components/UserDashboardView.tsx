@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLending, Asset } from '../contexts/LendingContext';
-import { formatTokenAmount, formatUsdValue, formatHealthFactor, getHealthFactorClass } from '../utils/formatters';
+import { formatTokenAmount, formatUsdValue, formatHealthFactor, getHealthFactorClass, formatPercentage } from '../utils/formatters';
+import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR } from '../utils/precisionConstants';
 import ActionModal from './ActionModal';
 
 interface UserDashboardViewProps {
@@ -43,14 +44,14 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
       case 'borrow':
         // Calculate max borrowable based on collateral and LTV
         const collateralValue = depositedAssets.reduce((total, asset) => {
-          const value = (asset.user_supplied * asset.price) / (10n ** BigInt(asset.decimals));
+          const value = tokenToUsd(asset.user_supplied, asset.decimals, asset.price);
           const ltvBps = BigInt(Math.floor(asset.loan_to_value * 10000));
-          return total + (value * ltvBps) / 10000n;
+          return total + (value * ltvBps) / PERCENTAGE_PRECISION_FACTOR;
         }, 0n);
         
         // Subtract already borrowed value
         const borrowedValue = borrowedAssets.reduce((total, asset) => {
-          return total + (asset.user_borrowed * asset.price) / (10n ** BigInt(asset.decimals));
+          return total + tokenToUsd(asset.user_borrowed, asset.decimals, asset.price);
         }, 0n);
         
         const maxBorrowableValue = collateralValue > borrowedValue 
@@ -58,7 +59,7 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
           : 0n;
         
         // Convert max borrowable value back to asset tokens
-        maxAmount = (maxBorrowableValue * (10n ** BigInt(asset.decimals))) / asset.price;
+        maxAmount = usdToToken(maxBorrowableValue, asset.decimals, asset.price);
         break;
       case 'repay':
         maxAmount = asset.user_borrowed < asset.wallet_balance 
@@ -108,8 +109,6 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
 
   return (
     <div className="user-dashboard">
-      <h2>Your Dashboard</h2>
-      
       {userPosition.total_borrowed_value > 0 && renderHealthFactor()}
       
       <div className="dashboard-panel">
@@ -127,8 +126,8 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
             <thead>
               <tr>
                 <th>Asset</th>
-                <th>Deposited</th>
-                <th>Value</th>
+                <th>Deposited Amount</th>
+                <th>Supply Rate</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -136,9 +135,10 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
               {depositedAssets.map(asset => {
                 const suppliedFormatted = formatTokenAmount(asset.user_supplied, asset.decimals);
                 const suppliedValueUsd = formatUsdValue(
-                  (asset.user_supplied * asset.price) / (10n ** BigInt(asset.decimals)),
+                  tokenToUsd(asset.user_supplied, asset.decimals, asset.price),
                   asset.decimals
                 );
+                const supplyRate = formatPercentage(asset.supply_rate * 100);
                 
                 return (
                   <tr key={asset.id} onClick={() => onAssetSelect(asset.id)}>
@@ -146,8 +146,13 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                       <span className="asset-name">{asset.name}</span>
                       <span className="asset-ticker">{asset.ticker}</span>
                     </td>
-                    <td>{suppliedFormatted} {asset.ticker}</td>
-                    <td>${suppliedValueUsd}</td>
+                    <td>
+                      <div className="token-amount">{suppliedFormatted} {asset.ticker}</div>
+                      <div className="secondary-value">${suppliedValueUsd}</div>
+                    </td>
+                    <td>
+                      <div className="supply-rate"><span className="supply-rate-value">{supplyRate}</span></div>
+                    </td>
                     <td onClick={e => e.stopPropagation()} className="action-buttons">
                       <button 
                         className="action-button supply-button" 
@@ -186,8 +191,8 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
             <thead>
               <tr>
                 <th>Asset</th>
-                <th>Borrowed</th>
-                <th>Value</th>
+                <th>Borrowed Amount</th>
+                <th>Borrow Rate</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -195,9 +200,10 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
               {borrowedAssets.map(asset => {
                 const borrowedFormatted = formatTokenAmount(asset.user_borrowed, asset.decimals);
                 const borrowedValueUsd = formatUsdValue(
-                  (asset.user_borrowed * asset.price) / (10n ** BigInt(asset.decimals)),
+                  tokenToUsd(asset.user_borrowed, asset.decimals, asset.price),
                   asset.decimals
                 );
+                const borrowRate = formatPercentage(asset.borrow_rate * 100);
                 
                 return (
                   <tr key={asset.id} onClick={() => onAssetSelect(asset.id)}>
@@ -205,8 +211,13 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                       <span className="asset-name">{asset.name}</span>
                       <span className="asset-ticker">{asset.ticker}</span>
                     </td>
-                    <td>{borrowedFormatted} {asset.ticker}</td>
-                    <td>${borrowedValueUsd}</td>
+                    <td>
+                      <div className="token-amount">{borrowedFormatted} {asset.ticker}</div>
+                      <div className="secondary-value">${borrowedValueUsd}</div>
+                    </td>
+                    <td>
+                      <div className="borrow-rate"><span className="borrow-rate-value">{borrowRate}</span></div>
+                    </td>
                     <td onClick={e => e.stopPropagation()} className="action-buttons">
                       <button 
                         className="action-button borrow-button" 

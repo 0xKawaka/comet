@@ -183,6 +183,10 @@ pub contract Lending {
         let scaled_withdraw_amount = (amount * 1000000000 as u128) / deposit_accumulator.value;
         scaled_user_deposited_amount_loc.write(scaled_user_deposited_amount - scaled_withdraw_amount);
 
+        let scaled_total_deposited_asset_loc = storage.scaled_total_deposited_assets.at(market_id).at(collateral_asset);
+        let scaled_total_deposited_asset: u128 = scaled_total_deposited_asset_loc.read();
+        scaled_total_deposited_asset_loc.write(scaled_total_deposited_asset - scaled_withdraw_amount);
+
         let _ = Token::at(collateral_asset)
             .transfer_in_public(context.this_address(), to, amount, 0)
             .call(&mut context);
@@ -386,10 +390,10 @@ pub contract Lending {
             let new_borrow_accumulator = ((borrow_accumulator.value * borrow_rate_per_year * time_delta as u128) / 31536000 as u128) / precision;
             let new_deposit_accumulator = ((deposit_accumulator.value * supply_rate_per_year * time_delta as u128) / 31536000 as u128) / precision;
 
-            borrow_accumulator.value = new_borrow_accumulator;
+            borrow_accumulator.value += new_borrow_accumulator;
             borrow_accumulator.last_updated_ts = timestamp;
             borrow_accumulator_loc.write(borrow_accumulator);
-            deposit_accumulator.value = new_deposit_accumulator;
+            deposit_accumulator.value += new_deposit_accumulator;
             deposit_accumulator.last_updated_ts = timestamp;
             deposit_accumulator_loc.write(deposit_accumulator);
         }
@@ -398,12 +402,18 @@ pub contract Lending {
     #[public]
     #[internal]
     fn _compute_utilization_rate(market_id: Field, asset_address: AztecAddress, precision: u128, deposit_accumulator: Accumulator, borrow_accumulator: Accumulator) -> u128 {
+        
         let scaled_total_deposited_asset = storage.scaled_total_deposited_assets.at(market_id).at(asset_address).read();
         let scaled_total_borrowed_asset = storage.scaled_total_borrowed_assets.at(market_id).at(asset_address).read();
 
         let total_deposited_assets = (scaled_total_deposited_asset * deposit_accumulator.value) / precision;
         let total_borrowed_assets = (scaled_total_borrowed_asset * borrow_accumulator.value) / precision;
-        let utilization_rate = (total_borrowed_assets * precision) / total_deposited_assets;
+        let mut utilization_rate = 0 as u128;
+        if (total_borrowed_assets != 0) {
+            utilization_rate = (total_borrowed_assets * precision) / total_deposited_assets;
+        } else {
+            utilization_rate = 0;
+        }
 
         utilization_rate
     }
@@ -456,5 +466,16 @@ pub contract Lending {
         let borrow_accumulator: Accumulator = borrow_accumulator_loc.read();
         let total_borrowed_assets = (scaled_total_borrowed_asset * borrow_accumulator.value) / 1000000000 as u128;
         total_borrowed_assets
+    }
+
+
+    #[utility]
+    #[view]
+    unconstrained fn get_accumulators(market_id: Field, asset_address: AztecAddress) -> (Accumulator, Accumulator) {
+        let deposit_accumulator_loc = storage.deposit_accumulators.at(market_id).at(asset_address);
+        let deposit_accumulator: Accumulator = deposit_accumulator_loc.read();
+        let borrow_accumulator_loc = storage.borrow_accumulators.at(market_id).at(asset_address);
+        let borrow_accumulator: Accumulator = borrow_accumulator_loc.read();
+        (deposit_accumulator, borrow_accumulator)
     }
 }

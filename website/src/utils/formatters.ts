@@ -1,10 +1,15 @@
+import { PERCENTAGE_PRECISION_FACTOR } from './precisionConstants';
+
 /**
  * Format a token amount to a human-readable string with specified decimals
  */
 export const formatTokenAmount = (amount: bigint, decimals: number): string => {
-  if (amount === 0n) return '0';
   // Ensure amount is a BigInt
   const amountBigInt = BigInt(amount.toString());
+  
+  // Special case for zero
+  if (amountBigInt === 0n) return '0';
+  
   // Ensure decimals is a number
   const decimalsNum = Number(decimals);
   
@@ -30,7 +35,20 @@ export const formatTokenAmount = (amount: bigint, decimals: number): string => {
  * Format a USD value with specified decimals
  */
 export const formatUsdValue = (amount: bigint, decimals: number): string => {
-  return formatTokenAmount(amount, decimals);
+  // Handle special case for zero or undefined values
+  if (!amount || amount === 0n) return '0.00';
+  
+  const formattedValue = formatTokenAmount(amount, decimals);
+  
+  // Ensure it has at least 2 decimal places for USD values
+  const parts = formattedValue.split('.');
+  if (parts.length === 1) {
+    return `${parts[0]}.00`;
+  } else if (parts[1].length === 1) {
+    return `${parts[0]}.${parts[1]}0`;
+  }
+  
+  return formattedValue;
 };
 
 /**
@@ -60,14 +78,6 @@ export const parseTokenAmount = (amount: string, decimals: number): bigint => {
 export const calculateLTV = (borrowedValue: bigint, collateralValue: bigint): number => {
   if (collateralValue === 0n) return 0;
   return Number((borrowedValue * 100n) / collateralValue) / 100;
-};
-
-/**
- * Calculate health factor based on borrowed value, max LTV, and collateral value
- */
-export const calculateHealthFactor = (borrowedValue: bigint, maxLtv: bigint, collateralValue: bigint): number => {
-  if (borrowedValue === 0n) return Infinity;
-  return Number((collateralValue * maxLtv) / borrowedValue) / 10000;
 };
 
 /**

@@ -1,5 +1,6 @@
 import { useLending } from '../contexts/LendingContext';
-import { formatTokenAmount, formatUsdValue, formatUtilizationRate } from '../utils/formatters';
+import { formatTokenAmount, formatUsdValue, formatUtilizationRate, formatPercentage } from '../utils/formatters';
+import { tokenToUsd } from '../utils/precisionConstants';
 
 interface MarketsViewProps {
   onAssetSelect: (assetId: string) => void;
@@ -28,8 +29,7 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
 
   return (
     <div className="markets-view">
-      <h2>Markets</h2>
-      <p>Click on an asset to view details and perform actions.</p>
+      <p></p>
       
       <table className="markets-table">
         <thead>
@@ -39,6 +39,8 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
             <th>Total Supplied</th>
             <th>Total Borrowed</th>
             <th>Utilization Rate</th>
+            <th>Supply Rate</th>
+            <th>Borrow Rate</th>
             <th>Loan to Value</th>
           </tr>
         </thead>
@@ -48,17 +50,19 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
             
             const totalSuppliedFormatted = formatTokenAmount(asset.total_supplied, asset.decimals);
             const totalSuppliedUsd = formatUsdValue(
-              (asset.total_supplied * asset.price) / (10n ** BigInt(asset.decimals)),
+              tokenToUsd(asset.total_supplied, asset.decimals, asset.price),
               asset.decimals
             );
             
             const totalBorrowedFormatted = formatTokenAmount(asset.total_borrowed, asset.decimals);
             const totalBorrowedUsd = formatUsdValue(
-              (asset.total_borrowed * asset.price) / (10n ** BigInt(asset.decimals)),
+              tokenToUsd(asset.total_borrowed, asset.decimals, asset.price),
               asset.decimals
             );
             
-            const utilizationRate = formatUtilizationRate(asset.total_borrowed, asset.total_supplied);
+            const utilizationRate = formatPercentage(asset.utilization_rate * 100);
+            const supplyRate = formatPercentage(asset.supply_rate * 100);
+            const borrowRate = formatPercentage(asset.borrow_rate * 100);
             const loanToValue = (asset.loan_to_value * 100).toFixed(0) + '%';
             
             return (
@@ -79,6 +83,8 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
                   <span className="secondary-value">${totalBorrowedUsd}</span>
                 </td>
                 <td><span className="utilization-rate">{utilizationRate}</span></td>
+                <td><span className="supply-rate">{supplyRate}</span></td>
+                <td><span className="borrow-rate">{borrowRate}</span></td>
                 <td><span className="loan-to-value">{loanToValue}</span></td>
               </tr>
             );

@@ -14,6 +14,7 @@
     "@aztec/accounts": "^0.85.0",
     "@aztec/aztec.js": "^0.85.0",
     "@aztec/noir-contracts.js": "^0.85.0",
+    "ethers": "^6.13.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

@@ -14,8 +14,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
+  padding: 16px 24px;
+  background-color: #fff;
   border-bottom: 1px solid #eaeaea;
 }
 
@@ -24,7 +24,7 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  gap: 15px;
+  gap: 16px;
 }
 
 .app-navigation button {
@@ -611,5 +611,57 @@
   .asset-actions {
     grid-template-columns: 1fr;
   }
+}
+
+/* Rate styling */
+.supply-rate, .borrow-rate {
+  color: #333;
+  font-weight: 600;
+  background-color: rgba(240, 240, 240, 0.7);
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.supply-rate {
+  color: #1e8a3e;  /* Green for supply (earning) */
+}
+
+.borrow-rate {
+  color: #ce3a54;  /* Red for borrow (cost) */
+}
+
+/* Make sure this applies to both spans and divs */
+span.supply-rate, div.supply-rate, 
+span.borrow-rate, div.borrow-rate {
+  display: inline-block;
+  min-width: 60px;
+  text-align: center;
+}
+
+/* Header Health Factor Styles */
+.header-health-factor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #f0f4ff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  margin-right: 16px;
+}
+
+.health-factor-label {
+  font-size: 14px;
+  color: #333;
+}
+
+.header-health-factor .health-factor-value {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.app-header-left, .app-header-right {
+  display: flex;
+  align-items: center;
 }
 

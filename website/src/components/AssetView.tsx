@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLending } from '../contexts/LendingContext';
 import { formatTokenAmount, formatUsdValue, formatUtilizationRate, formatPercentage } from '../utils/formatters';
+import { tokenToUsd, usdToToken, applyLtv } from '../utils/precisionConstants';
 import ActionModal from './ActionModal';
 
 interface AssetViewProps {
@@ -9,7 +10,7 @@ interface AssetViewProps {
 }
 
 const AssetView = ({ assetId, onBack }: AssetViewProps) => {
-  const { assets, isLoading, depositAsset, withdrawAsset, borrowAsset, repayAsset } = useLending();
+  const { assets, isLoading, depositAsset, withdrawAsset, borrowAsset, repayAsset, userPosition } = useLending();
   
   const [modalOpen, setModalOpen] = useState(false);
   const [actionType, setActionType] = useState<'deposit' | 'withdraw' | 'borrow' | 'repay'>('deposit');
@@ -40,15 +41,21 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
   }
 
   // Calculate USD values
-  const totalSuppliedUsd = (asset.total_supplied * asset.price) / (10n ** BigInt(asset.decimals));
-  const totalBorrowedUsd = (asset.total_borrowed * asset.price) / (10n ** BigInt(asset.decimals));
-  const userSuppliedUsd = (asset.user_supplied * asset.price) / (10n ** BigInt(asset.decimals));
-  const userBorrowedUsd = (asset.user_borrowed * asset.price) / (10n ** BigInt(asset.decimals));
+  const totalSuppliedUsd = tokenToUsd(asset.total_supplied, asset.decimals, asset.price);
+  const totalBorrowedUsd = tokenToUsd(asset.total_borrowed, asset.decimals, asset.price);
+  const userSuppliedUsd = tokenToUsd(asset.user_supplied, asset.decimals, asset.price);
+  const userBorrowedUsd = tokenToUsd(asset.user_borrowed, asset.decimals, asset.price);
   
-  // Calculate max borrowable amount
-  const availableToBorrow = asset.total_supplied > asset.total_borrowed 
+  const ltvBps = BigInt(Math.floor(asset.loan_to_value * 10000));
+  const borrowableValueUsd = asset.borrowable_value_usd;
+  const borrowableAmount = usdToToken(borrowableValueUsd, asset.decimals, asset.price);
+  
+  // Check if there's enough liquidity in the market
+  const marketLiquidity = asset.total_supplied > asset.total_borrowed 
     ? asset.total_supplied - asset.total_borrowed 
     : 0n;
+  
+  const availableToBorrow = borrowableAmount < marketLiquidity ? borrowableAmount : marketLiquidity;
 
   const openModal = (type: 'deposit' | 'withdraw' | 'borrow' | 'repay') => {
     let max = 0n;
@@ -61,7 +68,6 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
         max = asset.user_supplied;
         break;
       case 'borrow':
-        // This is a simplification - a real implementation would need to account for borrowing limit
         max = availableToBorrow;
         break;
       case 'repay':
@@ -142,7 +148,7 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
             <div className="action-value">
               {formatTokenAmount(asset.wallet_balance, asset.decimals)} {asset.ticker}
               <div className="secondary-value">
-                ${formatUsdValue((asset.wallet_balance * asset.price) / (10n ** BigInt(asset.decimals)), asset.decimals)}
+                ${formatUsdValue(tokenToUsd(asset.wallet_balance, asset.decimals, asset.price), asset.decimals)}
               </div>
             </div>
           </div>
@@ -178,7 +184,7 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
             <div className="action-value">
               {formatTokenAmount(availableToBorrow, asset.decimals)} {asset.ticker}
               <div className="secondary-value">
-                ${formatUsdValue((availableToBorrow * asset.price) / (10n ** BigInt(asset.decimals)), asset.decimals)}
+                ${formatUsdValue(tokenToUsd(availableToBorrow, asset.decimals, asset.price), asset.decimals)}
               </div>
             </div>
           </div>

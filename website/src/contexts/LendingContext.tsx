@@ -1,12 +1,13 @@
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 import { AztecAddress, Fr } from '@aztec/aztec.js';
+import { parseUnits, formatUnits } from 'ethers';
 import { useWallet } from '../hooks';
 import { LendingContract } from '../blockchain/contracts/Lending';
 import { TokenContract } from '@aztec/noir-contracts.js/Token';
 import devContracts from '../blockchain/dev-contracts.json';
 import allAssets from '../blockchain/dev-all-assets.json';
-import { calculateHealthFactor } from '../utils/formatters';
 import { PriceFeedContract } from '@aztec/noir-contracts.js/PriceFeed';
+import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR, PERCENTAGE_PRECISION } from '../utils/precisionConstants';
 
 const marketId = 1; // This should eventually be derived from the asset or configuration
 
@@ -25,10 +26,13 @@ export interface Asset {
   total_supplied: bigint;
   total_borrowed: bigint;
   utilization_rate: number;
+  borrow_rate: number;
+  supply_rate: number;
   user_supplied: bigint;
   user_borrowed: bigint;
   wallet_balance: bigint;
   wallet_balance_private: bigint;
+  borrowable_value_usd: bigint; // Added field for globally calculated borrowable value in USD
 }
 
 interface UserPosition {
@@ -88,6 +92,14 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     }
   }, [wallet, address]);
 
+  // Add a new useEffect to refresh data when address changes
+  useEffect(() => {
+    if (address && lendingContract) {
+      // Refresh market data when the address changes
+      refreshData();
+    }
+  }, [address]);
+
   const initLendingContract = async () => {
     if (!wallet || !address) return;
     
@@ -109,6 +121,9 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         loan_to_value: number;
         is_borrowable: boolean;
         deposit_cap: string;
+        optimal_utilization_rate: number;
+        under_optimal_slope: number;
+        over_optimal_slope: number;
       }>;
       
       // Initialize all contracts in parallel first
@@ -176,8 +191,24 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         
         // Calculate utilization rate
         const utilizationRate = totalSupplied > 0 
-          ? Number((totalBorrowed * 10000n) / totalSupplied) / 100 
+          ? Number((totalBorrowed * 10000n) / totalSupplied) / 10000 
           : 0;
+        // Calculate borrow rate
+        let borrowRate = 0;
+        const optimalRate = data.optimal_utilization_rate;
+        const underSlope = data.under_optimal_slope;
+        const overSlope = data.over_optimal_slope;
+
+        if (utilizationRate < optimalRate) {
+          borrowRate = (utilizationRate * underSlope) / optimalRate;
+        } else {
+          borrowRate = underSlope + 
+            ((utilizationRate - optimalRate) * overSlope) / 
+            (1 - optimalRate);
+        }
+        
+        // Calculate supply rate
+        const supplyRate = borrowRate * utilizationRate;
         
         return {
           id,
@@ -193,10 +224,13 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           total_supplied: totalSupplied,
           total_borrowed: totalBorrowed,
           utilization_rate: utilizationRate,
+          borrow_rate: borrowRate,
+          supply_rate: supplyRate,
           user_supplied: userPosition.collateral || 0n,
           user_borrowed: userPosition.debt || 0n,
           wallet_balance: walletBalance,
-          wallet_balance_private: walletBalancePrivate
+          wallet_balance_private: walletBalancePrivate,
+          borrowable_value_usd: 0n // Add default value, will be updated in updateUserPosition
         };
       });
       
@@ -216,26 +250,55 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   const updateUserPosition = (assetsArray: Asset[]) => {
     // Calculate total values
     const totalSuppliedValue = assetsArray.reduce((sum, asset) => {
-      const value = (asset.user_supplied * asset.price) / (10n ** BigInt(asset.decimals));
+      const value = tokenToUsd(asset.user_supplied, asset.decimals, asset.price);
       return sum + value;
     }, 0n);
     
     const totalBorrowedValue = assetsArray.reduce((sum, asset) => {
-      const value = (asset.user_borrowed * asset.price) / (10n ** BigInt(asset.decimals));
+      const value = tokenToUsd(asset.user_borrowed, asset.decimals, asset.price);
       return sum + value;
     }, 0n);
     
-    // Calculate weighted collateral value
-    let weightedCollatValue = 0n;
+    // Calculate collateral value needed based on the new formula
+    let collateralValueNeeded = 0n;
     for (const asset of assetsArray) {
-      const collatValue = (asset.user_supplied * asset.price) / (10n ** BigInt(asset.decimals));
-      const ltvBps = BigInt(Math.floor(asset.loan_to_value * 10000));
-      weightedCollatValue += (collatValue * ltvBps) / 10000n;
+      if (asset.user_borrowed > 0n) {
+        const borrowedValue = tokenToUsd(asset.user_borrowed, asset.decimals, asset.price);
+        const ltvBps = BigInt(Math.floor(asset.loan_to_value * 10000));
+        collateralValueNeeded += (borrowedValue * BigInt(PERCENTAGE_PRECISION_FACTOR)) / ltvBps;
+      }
     }
     
-    const healthFactor = totalBorrowedValue > 0 
-      ? Number(weightedCollatValue * 100n / totalBorrowedValue) / 100 
+    // Calculate health factor according to the new formula
+    const healthFactor = collateralValueNeeded > 0n
+      ? parseFloat(formatUnits(totalSuppliedValue * BigInt(PERCENTAGE_PRECISION_FACTOR) / collateralValueNeeded, PERCENTAGE_PRECISION))
       : Infinity;
+    
+    // Calculate maximum borrowable value based on user's supplied collateral
+    const maxBorrowableValueFromCollateral = totalSuppliedValue > totalBorrowedValue 
+      ? totalSuppliedValue - totalBorrowedValue 
+      : 0n;
+
+    // Update borrowable value for each asset based on both available liquidity and user's borrowing capacity
+    for (const asset of assetsArray) {
+      if (asset.is_borrowable) {
+        // Calculate available liquidity of the asset in the pool (in USD)
+        const availableLiquidity = asset.total_supplied > asset.total_borrowed 
+          ? asset.total_supplied - asset.total_borrowed 
+          : 0n;
+        const availableLiquidityUsd = tokenToUsd(availableLiquidity, asset.decimals, asset.price);
+        
+        // Calculate maximum amount user can borrow based on collateral and this asset's LTV
+        const maxBorrowableUsd = applyLtv(maxBorrowableValueFromCollateral, asset.loan_to_value);
+        
+        // Borrowable value is the minimum of available liquidity and maximum borrowable based on collateral
+        asset.borrowable_value_usd = availableLiquidityUsd < maxBorrowableUsd 
+          ? availableLiquidityUsd 
+          : maxBorrowableUsd;
+      } else {
+        asset.borrowable_value_usd = 0n;
+      }
+    }
     
     setUserPosition({
       health_factor: healthFactor,
@@ -251,7 +314,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       const asset = assets.find(a => a.id === assetId);
       if (!asset) throw new Error("Asset not found");
       
-      const amountBigInt = BigInt(amount) * (10n ** BigInt(asset.decimals));
+      // Use ethers.js parseUnits to safely handle decimal inputs
+      const amountBigInt = parseUnits(amount, asset.decimals);
       const nonce = Fr.random();
       
       
@@ -315,7 +379,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       const asset = assets.find(a => a.id === assetId);
       if (!asset) throw new Error("Asset not found");
       
-      const amountBigInt = BigInt(amount) * (10n ** BigInt(asset.decimals));
+      // Use ethers.js parseUnits to safely handle decimal inputs
+      const amountBigInt = parseUnits(amount, asset.decimals);
       
       if (isPrivate) {
         await lendingContract.methods.withdraw_private(
@@ -348,7 +413,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       const asset = assets.find(a => a.id === assetId);
       if (!asset) throw new Error("Asset not found");
       
-      const amountBigInt = BigInt(amount) * (10n ** BigInt(asset.decimals));
+      // Use ethers.js parseUnits to safely handle decimal inputs
+      const amountBigInt = parseUnits(amount, asset.decimals);
       
       if (isPrivate) {
         await lendingContract.methods.borrow_private(
@@ -381,7 +447,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       const asset = assets.find(a => a.id === assetId);
       if (!asset) throw new Error("Asset not found");
       
-      const amountBigInt = BigInt(amount) * (10n ** BigInt(asset.decimals));
+      // Use ethers.js parseUnits to safely handle decimal inputs
+      const amountBigInt = parseUnits(amount, asset.decimals);
       const nonce = Fr.random();
       
       const tokenContract = await TokenContract.at(asset.address, wallet);
@@ -451,6 +518,9 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         loan_to_value: number;
         is_borrowable: boolean;
         deposit_cap: string;
+        optimal_utilization_rate: number;
+        under_optimal_slope: number;
+        over_optimal_slope: number;
       }>;
       
       // Initialize all contracts in parallel first
@@ -501,7 +571,6 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       
       // Wait for all asset data to be fetched
       const assetsResults = await Promise.all(assetDataPromises);
-      
       // Process the results into Asset objects
       const assetsArray: Asset[] = assetsResults.map(result => {
         const [
@@ -520,6 +589,22 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         const utilizationRate = totalSupplied > 0 
           ? Number((totalBorrowed * 10000n) / totalSupplied) / 100 
           : 0;
+
+        // Calculate borrow rate
+        let borrowRate = 0;
+        const optimalRate = data.optimal_utilization_rate;
+        const underSlope = data.under_optimal_slope;
+        const overSlope = data.over_optimal_slope;
+        
+        if (utilizationRate < optimalRate) {
+          borrowRate = (utilizationRate * underSlope) / optimalRate;
+        } else {
+          borrowRate = underSlope + 
+            ((utilizationRate - optimalRate) * overSlope) / 
+            (1 - optimalRate);
+        }
+        // Calculate supply rate
+        const supplyRate = borrowRate * utilizationRate;
         
         return {
           id,
@@ -535,10 +620,13 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           total_supplied: totalSupplied,
           total_borrowed: totalBorrowed,
           utilization_rate: utilizationRate,
+          borrow_rate: borrowRate,
+          supply_rate: supplyRate,
           user_supplied: userPosition.collateral || 0n,
           user_borrowed: userPosition.debt || 0n,
           wallet_balance: walletBalance,
-          wallet_balance_private: walletBalancePrivate
+          wallet_balance_private: walletBalancePrivate,
+          borrowable_value_usd: 0n // Add default value, will be updated in updateUserPosition
         };
       });
       

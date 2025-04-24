@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { WalletProvider } from './contexts/WalletContext';
 import WalletInfo from './components/WalletInfo';
+import HealthFactorIndicator from './components/HealthFactorIndicator';
 import MarketsView from './components/MarketsView';
 import UserDashboardView from './components/UserDashboardView';
 import AssetView from './components/AssetView';
@@ -47,27 +48,32 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <WalletInfo />
-        <nav className="app-navigation">
-          <ul>
-            <li>
-              <button 
-                className={currentView === 'markets' ? 'active' : ''} 
-                onClick={() => setCurrentView('markets')}
-              >
-                Markets
-              </button>
-            </li>
-            <li>
-              <button 
-                className={currentView === 'dashboard' ? 'active' : ''}
-                onClick={() => setCurrentView('dashboard')}
-              >
-                My Dashboard
-              </button>
-            </li>
-          </ul>
-        </nav>
+        <div className="app-header-left">
+          <WalletInfo />
+        </div>
+        <div className="app-header-right">
+          <HealthFactorIndicator />
+          <nav className="app-navigation">
+            <ul>
+              <li>
+                <button 
+                  className={currentView === 'markets' ? 'active' : ''} 
+                  onClick={() => setCurrentView('markets')}
+                >
+                  Markets
+                </button>
+              </li>
+              <li>
+                <button 
+                  className={currentView === 'dashboard' ? 'active' : ''}
+                  onClick={() => setCurrentView('dashboard')}
+                >
+                  My Dashboard
+                </button>
+              </li>
+            </ul>
+          </nav>
+        </div>
       </header>
       <main className="app-content">
         {renderView()}

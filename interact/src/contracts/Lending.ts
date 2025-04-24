@@ -181,6 +181,9 @@ borrow_accumulators: {
     /** deposit_public(amount: integer, nonce: field, on_behalf_of: field, market_id: field, collateral_asset: struct) */
     deposit_public: ((amount: (bigint | number), nonce: FieldLike, on_behalf_of: FieldLike, market_id: FieldLike, collateral_asset: AztecAddressLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
+    /** get_accumulators(market_id: field, asset_address: struct) */
+    get_accumulators: ((market_id: FieldLike, asset_address: AztecAddressLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+
     /** get_position(owner: struct, market_id: field, asset_address: struct) */
     get_position: ((owner: AztecAddressLike, market_id: FieldLike, asset_address: AztecAddressLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 

@@ -12,10 +12,6 @@ const WalletInfo = () => {
   return (
     <div className="wallet-info">
       <WalletSelector />
-      {/* <div>
-        <div className="wallet-label">Connected to PXE as</div>
-        <div className="wallet-address">{address?.toString()}</div>
-      </div> */}
     </div>
   );
 };
