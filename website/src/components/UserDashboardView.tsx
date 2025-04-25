@@ -28,8 +28,8 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
   }
 
   // Filter assets where user has deposited or borrowed
-  const depositedAssets = assets.filter(asset => asset.user_supplied > 0n);
-  const borrowedAssets = assets.filter(asset => asset.user_borrowed > 0n);
+  const depositedAssets = assets.filter(asset => asset.user_supplied_with_interest > 0n);
+  const borrowedAssets = assets.filter(asset => asset.user_borrowed_with_interest > 0n);
 
   const openModal = (asset: Asset, actionType: 'deposit' | 'withdraw' | 'borrow' | 'repay') => {
     let maxAmount = 0n;
@@ -39,19 +39,19 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
         maxAmount = asset.wallet_balance;
         break;
       case 'withdraw':
-        maxAmount = asset.user_supplied;
+        maxAmount = asset.user_supplied_with_interest;
         break;
       case 'borrow':
         // Calculate max borrowable based on collateral and LTV
         const collateralValue = depositedAssets.reduce((total, asset) => {
-          const value = tokenToUsd(asset.user_supplied, asset.decimals, asset.price);
+          const value = tokenToUsd(asset.user_supplied_with_interest, asset.decimals, asset.price);
           const ltvBps = BigInt(Math.floor(asset.loan_to_value * 10000));
           return total + (value * ltvBps) / PERCENTAGE_PRECISION_FACTOR;
         }, 0n);
         
         // Subtract already borrowed value
         const borrowedValue = borrowedAssets.reduce((total, asset) => {
-          return total + tokenToUsd(asset.user_borrowed, asset.decimals, asset.price);
+          return total + tokenToUsd(asset.user_borrowed_with_interest, asset.decimals, asset.price);
         }, 0n);
         
         const maxBorrowableValue = collateralValue > borrowedValue 
@@ -62,8 +62,8 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
         maxAmount = usdToToken(maxBorrowableValue, asset.decimals, asset.price);
         break;
       case 'repay':
-        maxAmount = asset.user_borrowed < asset.wallet_balance 
-          ? asset.user_borrowed 
+        maxAmount = asset.user_borrowed_with_interest < asset.wallet_balance 
+          ? asset.user_borrowed_with_interest 
           : asset.wallet_balance;
         break;
     }
@@ -98,10 +98,31 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
     const healthClass = getHealthFactorClass(healthFactor);
     
     return (
-      <div className="health-factor">
-        <h3>Health Factor</h3>
-        <div className={`health-factor-value ${healthClass}`}>
-          {formatHealthFactor(healthFactor)}
+      <div className="position-summary" style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: '20px'
+      }}>
+        <div className="position-summary-item health-factor" style={{ flex: 1, textAlign: 'center' }}>
+          <h3 style={{ fontWeight: 600, marginBottom: '8px', fontSize: '1rem', color: '#444' }}>Health Factor</h3>
+          <div className={`health-factor-value ${healthClass}`}>
+            {formatHealthFactor(healthFactor)}
+          </div>
+        </div>
+        
+        <div className="position-summary-item" style={{ flex: 1, textAlign: 'center' }}>
+          <h3 style={{ fontWeight: 600, marginBottom: '8px', fontSize: '1rem', color: '#444' }}>Total Supplied</h3>
+          <div className="position-value" style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#2e7d32' }}>
+            ${formatUsdValue(userPosition.total_supplied_value, 9)}
+          </div>
+        </div>
+        
+        <div className="position-summary-item" style={{ flex: 1, textAlign: 'center' }}>
+          <h3 style={{ fontWeight: 600, marginBottom: '8px', fontSize: '1rem', color: '#444' }}>Total Borrowed</h3>
+          <div className="position-value" style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#d32f2f' }}>
+            ${formatUsdValue(userPosition.total_borrowed_value, 9)}
+          </div>
         </div>
       </div>
     );
@@ -109,7 +130,17 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
 
   return (
     <div className="user-dashboard">
-      {userPosition.total_borrowed_value > 0 && renderHealthFactor()}
+      {userPosition.total_borrowed_value > 0 && 
+        <div style={{ 
+          marginBottom: '20px', 
+          padding: '15px', 
+          borderRadius: '8px', 
+          backgroundColor: '#f9fafb', 
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' 
+        }}>
+          {renderHealthFactor()}
+        </div>
+      }
       
       <div className="dashboard-panel">
         <div className="panel-header">
@@ -133,9 +164,9 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
             </thead>
             <tbody>
               {depositedAssets.map(asset => {
-                const suppliedFormatted = formatTokenAmount(asset.user_supplied, asset.decimals);
+                const suppliedFormatted = formatTokenAmount(asset.user_supplied_with_interest, asset.decimals);
                 const suppliedValueUsd = formatUsdValue(
-                  tokenToUsd(asset.user_supplied, asset.decimals, asset.price),
+                  tokenToUsd(asset.user_supplied_with_interest, asset.decimals, asset.price),
                   asset.decimals
                 );
                 const supplyRate = formatPercentage(asset.supply_rate * 100);
@@ -198,9 +229,9 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
             </thead>
             <tbody>
               {borrowedAssets.map(asset => {
-                const borrowedFormatted = formatTokenAmount(asset.user_borrowed, asset.decimals);
+                const borrowedFormatted = formatTokenAmount(asset.user_borrowed_with_interest, asset.decimals);
                 const borrowedValueUsd = formatUsdValue(
-                  tokenToUsd(asset.user_borrowed, asset.decimals, asset.price),
+                  tokenToUsd(asset.user_borrowed_with_interest, asset.decimals, asset.price),
                   asset.decimals
                 );
                 const borrowRate = formatPercentage(asset.borrow_rate * 100);

@@ -13,9 +13,13 @@ async function main() {
   const pxe = createPXEClient(PXE_URL);
   await waitForPXE(pxe);
 
-  const [ownerWallet] = await getInitialTestAccountsWallets(pxe);
+  const wallets = await getInitialTestAccountsWallets(pxe);
+
+  const ownerWallet = wallets[0];
   const ownerAddress = ownerWallet.getAddress();
-  
+  const userWallet = wallets[1];
+  const userAddress = userWallet.getAddress();
+
   // Deploy tokens in parallel
   const [token1, token2, token3, priceFeed1, priceFeed2, priceFeed3] = await Promise.all([
     TokenContract.deploy(ownerWallet, ownerAddress, 'token 1', 'TK1', 9).send().deployed(),
@@ -48,6 +52,9 @@ async function main() {
     token1.methods.mint_to_public(ownerAddress, 1000n * 10n ** 9n).send().wait(),
     token2.methods.mint_to_public(ownerAddress, 1000n * 10n ** 9n).send().wait(),
     token3.methods.mint_to_public(ownerAddress, 1000n * 10n ** 9n).send().wait(),
+    token1.methods.mint_to_public(userAddress, 1000n * 10n ** 9n).send().wait(),
+    token2.methods.mint_to_public(userAddress, 1000n * 10n ** 9n).send().wait(),
+    token3.methods.mint_to_public(userAddress, 1000n * 10n ** 9n).send().wait(),
     priceFeed1.methods.set_price(0n, 3n * 10n ** 9n).send().wait(),
     priceFeed2.methods.set_price(0n, 2n * 10n ** 9n).send().wait(),
     priceFeed3.methods.set_price(0n, 1n * 10n ** 9n).send().wait(),

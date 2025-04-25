@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLending } from '../contexts/LendingContext';
-import { formatTokenAmount, formatUsdValue, formatUtilizationRate, formatPercentage } from '../utils/formatters';
+import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
 import { tokenToUsd, usdToToken, applyLtv } from '../utils/precisionConstants';
 import ActionModal from './ActionModal';
 
@@ -41,18 +41,18 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
   }
 
   // Calculate USD values
-  const totalSuppliedUsd = tokenToUsd(asset.total_supplied, asset.decimals, asset.price);
-  const totalBorrowedUsd = tokenToUsd(asset.total_borrowed, asset.decimals, asset.price);
-  const userSuppliedUsd = tokenToUsd(asset.user_supplied, asset.decimals, asset.price);
-  const userBorrowedUsd = tokenToUsd(asset.user_borrowed, asset.decimals, asset.price);
+  const totalSuppliedUsd = tokenToUsd(asset.total_supplied_with_interest, asset.decimals, asset.price);
+  const totalBorrowedUsd = tokenToUsd(asset.total_borrowed_with_interest, asset.decimals, asset.price);
+  const userSuppliedUsd = tokenToUsd(asset.user_supplied_with_interest, asset.decimals, asset.price);
+  const userBorrowedUsd = tokenToUsd(asset.user_borrowed_with_interest, asset.decimals, asset.price);
   
   const ltvBps = BigInt(Math.floor(asset.loan_to_value * 10000));
   const borrowableValueUsd = asset.borrowable_value_usd;
   const borrowableAmount = usdToToken(borrowableValueUsd, asset.decimals, asset.price);
   
   // Check if there's enough liquidity in the market
-  const marketLiquidity = asset.total_supplied > asset.total_borrowed 
-    ? asset.total_supplied - asset.total_borrowed 
+  const marketLiquidity = asset.total_supplied_with_interest > asset.total_borrowed_with_interest 
+    ? asset.total_supplied_with_interest - asset.total_borrowed_with_interest 
     : 0n;
   
   const availableToBorrow = borrowableAmount < marketLiquidity ? borrowableAmount : marketLiquidity;
@@ -65,13 +65,13 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
         max = asset.wallet_balance;
         break;
       case 'withdraw':
-        max = asset.user_supplied;
+        max = asset.user_supplied_with_interest;
         break;
       case 'borrow':
         max = availableToBorrow;
         break;
       case 'repay':
-        max = asset.user_borrowed < asset.wallet_balance ? asset.user_borrowed : asset.wallet_balance;
+        max = asset.user_borrowed_with_interest < asset.wallet_balance ? asset.user_borrowed_with_interest : asset.wallet_balance;
         break;
     }
     
@@ -113,7 +113,7 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
         <div className="overview-item">
           <div className="overview-label">Total Supplied</div>
           <div className="overview-value">
-            {formatTokenAmount(asset.total_supplied, asset.decimals)} {asset.ticker}
+            {formatTokenAmount(asset.total_supplied_with_interest, asset.decimals)} {asset.ticker}
             <div className="secondary-value">${formatUsdValue(totalSuppliedUsd, asset.decimals)}</div>
           </div>
         </div>
@@ -121,7 +121,7 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
         <div className="overview-item">
           <div className="overview-label">Total Borrowed</div>
           <div className="overview-value">
-            {formatTokenAmount(asset.total_borrowed, asset.decimals)} {asset.ticker}
+            {formatTokenAmount(asset.total_borrowed_with_interest, asset.decimals)} {asset.ticker}
             <div className="secondary-value">${formatUsdValue(totalBorrowedUsd, asset.decimals)}</div>
           </div>
         </div>
@@ -129,7 +129,21 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
         <div className="overview-item">
           <div className="overview-label">Utilization Rate</div>
           <div className="overview-value">
-            {formatUtilizationRate(asset.total_borrowed, asset.total_supplied)}
+            {formatPercentage(asset.utilization_rate * 100)}
+          </div>
+        </div>
+        
+        <div className="overview-item">
+          <div className="overview-label">Supply Rate</div>
+          <div className="overview-value">
+            {formatPercentage(asset.supply_rate * 100)}
+          </div>
+        </div>
+        
+        <div className="overview-item">
+          <div className="overview-label">Borrow Rate</div>
+          <div className="overview-value">
+            {formatPercentage(asset.borrow_rate * 100)}
           </div>
         </div>
         
@@ -165,14 +179,14 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
           <div className="action-info">
             <div className="action-label">Your Deposits</div>
             <div className="action-value">
-              {formatTokenAmount(asset.user_supplied, asset.decimals)} {asset.ticker}
+              {formatTokenAmount(asset.user_supplied_with_interest, asset.decimals)} {asset.ticker}
               <div className="secondary-value">${formatUsdValue(userSuppliedUsd, asset.decimals)}</div>
             </div>
           </div>
           <button 
             className="action-button withdraw-button" 
             onClick={() => openModal('withdraw')}
-            disabled={asset.user_supplied === 0n}
+            disabled={asset.user_supplied_with_interest === 0n}
           >
             Withdraw
           </button>
@@ -201,14 +215,14 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
           <div className="action-info">
             <div className="action-label">Your Borrows</div>
             <div className="action-value">
-              {formatTokenAmount(asset.user_borrowed, asset.decimals)} {asset.ticker}
+              {formatTokenAmount(asset.user_borrowed_with_interest, asset.decimals)} {asset.ticker}
               <div className="secondary-value">${formatUsdValue(userBorrowedUsd, asset.decimals)}</div>
             </div>
           </div>
           <button 
             className="action-button repay-button" 
             onClick={() => openModal('repay')}
-            disabled={asset.user_borrowed === 0n || asset.wallet_balance === 0n}
+            disabled={asset.user_borrowed_with_interest === 0n || asset.wallet_balance === 0n}
           >
             Repay
           </button>

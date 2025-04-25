@@ -1,5 +1,5 @@
 import { useLending } from '../contexts/LendingContext';
-import { formatTokenAmount, formatUsdValue, formatUtilizationRate, formatPercentage } from '../utils/formatters';
+import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
 import { tokenToUsd } from '../utils/precisionConstants';
 
 interface MarketsViewProps {
@@ -48,15 +48,15 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
           {assets.map(asset => {
             const assetPrice = formatUsdValue(asset.price, asset.decimals);
             
-            const totalSuppliedFormatted = formatTokenAmount(asset.total_supplied, asset.decimals);
+            const totalSuppliedFormatted = formatTokenAmount(asset.total_supplied_with_interest, asset.decimals);
             const totalSuppliedUsd = formatUsdValue(
-              tokenToUsd(asset.total_supplied, asset.decimals, asset.price),
+              tokenToUsd(asset.total_supplied_with_interest, asset.decimals, asset.price),
               asset.decimals
             );
             
-            const totalBorrowedFormatted = formatTokenAmount(asset.total_borrowed, asset.decimals);
+            const totalBorrowedFormatted = formatTokenAmount(asset.total_borrowed_with_interest, asset.decimals);
             const totalBorrowedUsd = formatUsdValue(
-              tokenToUsd(asset.total_borrowed, asset.decimals, asset.price),
+              tokenToUsd(asset.total_borrowed_with_interest, asset.decimals, asset.price),
               asset.decimals
             );
             

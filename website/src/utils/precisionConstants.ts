@@ -4,6 +4,9 @@
 
 import { parseUnits } from 'ethers';
 
+export const INTEREST_PRECISION = 18;
+export const INTEREST_PRECISION_FACTOR = 10n ** BigInt(INTEREST_PRECISION);
+
 // Price precision used in price oracle feeds (the number of decimals in price values)
 export const PRICE_PRECISION = 9;
 export const PRICE_PRECISION_FACTOR = 10n ** BigInt(PRICE_PRECISION);

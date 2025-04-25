@@ -90,14 +90,6 @@ export const getHealthFactorClass = (healthFactor: number): string => {
 };
 
 /**
- * Format utilization rate
- */
-export const formatUtilizationRate = (totalBorrowed: bigint, totalSupplied: bigint): string => {
-  if (totalSupplied === 0n) return '0%';
-  return `${Number((totalBorrowed * 100n) / totalSupplied).toFixed(2)}%`;
-};
-
-/**
  * Format percentage value
  */
 export const formatPercentage = (value: number): string => {

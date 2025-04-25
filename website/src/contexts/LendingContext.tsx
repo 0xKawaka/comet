@@ -7,7 +7,7 @@ import { TokenContract } from '@aztec/noir-contracts.js/Token';
 import devContracts from '../blockchain/dev-contracts.json';
 import allAssets from '../blockchain/dev-all-assets.json';
 import { PriceFeedContract } from '@aztec/noir-contracts.js/PriceFeed';
-import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR, PERCENTAGE_PRECISION } from '../utils/precisionConstants';
+import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR, PERCENTAGE_PRECISION, PRICE_PRECISION_FACTOR, INTEREST_PRECISION_FACTOR } from '../utils/precisionConstants';
 
 const marketId = 1; // This should eventually be derived from the asset or configuration
 
@@ -25,14 +25,26 @@ export interface Asset {
   price: bigint;
   total_supplied: bigint;
   total_borrowed: bigint;
+  total_supplied_with_interest: bigint; // New field for total supplied amount with accrued interest
+  total_borrowed_with_interest: bigint; // New field for total borrowed amount with accrued interest
   utilization_rate: number;
   borrow_rate: number;
   supply_rate: number;
   user_supplied: bigint;
   user_borrowed: bigint;
+  user_supplied_with_interest: bigint; // New field for supplied amount with accrued interest
+  user_borrowed_with_interest: bigint; // New field for borrowed amount with accrued interest
   wallet_balance: bigint;
   wallet_balance_private: bigint;
   borrowable_value_usd: bigint; // Added field for globally calculated borrowable value in USD
+  deposit_accumulator: {
+    value: bigint;
+    last_updated_ts: number;
+  };
+  borrow_accumulator: {
+    value: bigint;
+    last_updated_ts: number;
+  };
 }
 
 interface UserPosition {
@@ -70,6 +82,37 @@ const defaultContext: LendingContextType = {
 const LendingContext = createContext<LendingContextType>(defaultContext);
 
 export const useLending = () => useContext(LendingContext);
+
+// Define a utility function to calculate accrued interest based on rate and time
+const calculateInterestAccrued = (
+  amount: bigint, 
+  rate: number, 
+  lastUpdatedTimestamp: number | bigint
+): bigint => {
+  // Convert lastUpdatedTimestamp to number if it's a bigint
+  const lastUpdatedTs = typeof lastUpdatedTimestamp === 'bigint' 
+    ? Number(lastUpdatedTimestamp) 
+    : lastUpdatedTimestamp;
+  
+  const currentTimestamp = Math.floor(Date.now() / 1000); // Current time in seconds
+  
+  // Calculate time elapsed in seconds since last update
+  const timeElapsedSeconds = currentTimestamp - lastUpdatedTs;
+  
+  // If no time has elapsed or the timestamp is invalid, return the original amount
+  if (timeElapsedSeconds <= 0) return amount;
+  
+  // Convert rate from percentage to decimal (e.g., 5% -> 0.05)
+  // Then calculate seconds in a year and adjust rate accordingly
+  const secondsInYear = 365 * 24 * 60 * 60;
+
+  // Calculate interest factor (1 + rate * time)
+  const interestFactor = 1 + (rate * timeElapsedSeconds) / secondsInYear;
+  // Apply interest factor to the amount
+  // Convert the interest factor to a BigInt with appropriate precision
+  const factorBigInt = BigInt(Math.floor(interestFactor * Number(INTEREST_PRECISION_FACTOR)));
+  return (amount * factorBigInt) / INTEREST_PRECISION_FACTOR;
+};
 
 interface LendingProviderProps {
   children: ReactNode;
@@ -163,6 +206,9 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           // Get price
           priceFeedContract.methods.get_price(0).simulate(),
           
+          // Get accumulators
+          contract.methods.get_accumulators(marketId, assetAddress).simulate(),
+          
           // Return asset metadata
           Promise.resolve({ 
             id, 
@@ -184,6 +230,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           totalSupplied,
           totalBorrowed,
           priceResponse,
+          accumulators,
           metadata
         ] = result;
         
@@ -210,6 +257,32 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         // Calculate supply rate
         const supplyRate = borrowRate * utilizationRate;
         
+        // Calculate supplied and borrowed amounts with accrued interest (user specific)
+        const userSuppliedWithInterest = calculateInterestAccrued(
+          userPosition.collateral || 0n,
+          supplyRate,
+          accumulators[0]?.last_updated_ts || 0
+        );
+        
+        const userBorrowedWithInterest = calculateInterestAccrued(
+          userPosition.debt || 0n,
+          borrowRate,
+          accumulators[1]?.last_updated_ts || 0
+        );
+
+        // Calculate total supplied and borrowed with accrued interest (global pool)
+        const totalSuppliedWithInterest = calculateInterestAccrued(
+          totalSupplied,
+          supplyRate,
+          accumulators[0]?.last_updated_ts || 0
+        );
+        
+        const totalBorrowedWithInterest = calculateInterestAccrued(
+          totalBorrowed,
+          borrowRate,
+          accumulators[1]?.last_updated_ts || 0
+        );
+        
         return {
           id,
           address: assetAddress,
@@ -223,17 +296,29 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           price: priceResponse.price,
           total_supplied: totalSupplied,
           total_borrowed: totalBorrowed,
+          total_supplied_with_interest: totalSuppliedWithInterest,
+          total_borrowed_with_interest: totalBorrowedWithInterest,
           utilization_rate: utilizationRate,
           borrow_rate: borrowRate,
           supply_rate: supplyRate,
           user_supplied: userPosition.collateral || 0n,
           user_borrowed: userPosition.debt || 0n,
+          user_supplied_with_interest: userSuppliedWithInterest,
+          user_borrowed_with_interest: userBorrowedWithInterest,
           wallet_balance: walletBalance,
           wallet_balance_private: walletBalancePrivate,
-          borrowable_value_usd: 0n // Add default value, will be updated in updateUserPosition
+          borrowable_value_usd: 0n, // Add default value, will be updated in updateUserPosition
+          deposit_accumulator: {
+            value: accumulators[0]?.value || 0n,
+            last_updated_ts: Number(accumulators[0]?.last_updated_ts) || 0
+          },
+          borrow_accumulator: {
+            value: accumulators[1]?.value || 0n,
+            last_updated_ts: Number(accumulators[1]?.last_updated_ts) || 0
+          }
         };
       });
-      
+
       setAssets(assetsArray);
       
       // Calculate user position metrics
@@ -248,22 +333,22 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
 
   // Helper function to calculate and update user position
   const updateUserPosition = (assetsArray: Asset[]) => {
-    // Calculate total values
+    // Calculate total values using the interest-accrued amounts
     const totalSuppliedValue = assetsArray.reduce((sum, asset) => {
-      const value = tokenToUsd(asset.user_supplied, asset.decimals, asset.price);
+      const value = tokenToUsd(asset.user_supplied_with_interest, asset.decimals, asset.price);
       return sum + value;
     }, 0n);
     
     const totalBorrowedValue = assetsArray.reduce((sum, asset) => {
-      const value = tokenToUsd(asset.user_borrowed, asset.decimals, asset.price);
+      const value = tokenToUsd(asset.user_borrowed_with_interest, asset.decimals, asset.price);
       return sum + value;
     }, 0n);
     
     // Calculate collateral value needed based on the new formula
     let collateralValueNeeded = 0n;
     for (const asset of assetsArray) {
-      if (asset.user_borrowed > 0n) {
-        const borrowedValue = tokenToUsd(asset.user_borrowed, asset.decimals, asset.price);
+      if (asset.user_borrowed_with_interest > 0n) {
+        const borrowedValue = tokenToUsd(asset.user_borrowed_with_interest, asset.decimals, asset.price);
         const ltvBps = BigInt(Math.floor(asset.loan_to_value * 10000));
         collateralValueNeeded += (borrowedValue * BigInt(PERCENTAGE_PRECISION_FACTOR)) / ltvBps;
       }
@@ -275,8 +360,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       : Infinity;
     
     // Calculate maximum borrowable value based on user's supplied collateral
-    const maxBorrowableValueFromCollateral = totalSuppliedValue > totalBorrowedValue 
-      ? totalSuppliedValue - totalBorrowedValue 
+    const maxBorrowableValueFromCollateral = totalSuppliedValue > collateralValueNeeded 
+      ? totalSuppliedValue - collateralValueNeeded 
       : 0n;
 
     // Update borrowable value for each asset based on both available liquidity and user's borrowing capacity
@@ -560,6 +645,9 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           // Get price
           priceFeedContract.methods.get_price(0).simulate(),
           
+          // Get accumulators
+          lendingContract.methods.get_accumulators(marketId, assetAddress).simulate(),
+          
           // Return asset metadata
           Promise.resolve({ 
             id, 
@@ -580,6 +668,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           totalSupplied,
           totalBorrowed,
           priceResponse,
+          accumulators,
           metadata
         ] = result;
         
@@ -587,7 +676,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         
         // Calculate utilization rate
         const utilizationRate = totalSupplied > 0 
-          ? Number((totalBorrowed * 10000n) / totalSupplied) / 100 
+          ? Number((totalBorrowed * 10000n) / totalSupplied) / 10000 
           : 0;
 
         // Calculate borrow rate
@@ -606,6 +695,32 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         // Calculate supply rate
         const supplyRate = borrowRate * utilizationRate;
         
+        // Calculate supplied and borrowed amounts with accrued interest (user specific)
+        const userSuppliedWithInterest = calculateInterestAccrued(
+          userPosition.collateral || 0n,
+          supplyRate,
+          accumulators[0]?.last_updated_ts || 0
+        );
+        
+        const userBorrowedWithInterest = calculateInterestAccrued(
+          userPosition.debt || 0n,
+          borrowRate,
+          accumulators[1]?.last_updated_ts || 0
+        );
+        
+        // Calculate total supplied and borrowed with accrued interest (global pool)
+        const totalSuppliedWithInterest = calculateInterestAccrued(
+          totalSupplied,
+          supplyRate,
+          accumulators[0]?.last_updated_ts || 0
+        );
+        
+        const totalBorrowedWithInterest = calculateInterestAccrued(
+          totalBorrowed,
+          borrowRate,
+          accumulators[1]?.last_updated_ts || 0
+        );
+        
         return {
           id,
           address: assetAddress,
@@ -619,14 +734,26 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           price: priceResponse.price,
           total_supplied: totalSupplied,
           total_borrowed: totalBorrowed,
+          total_supplied_with_interest: totalSuppliedWithInterest,
+          total_borrowed_with_interest: totalBorrowedWithInterest,
           utilization_rate: utilizationRate,
           borrow_rate: borrowRate,
           supply_rate: supplyRate,
           user_supplied: userPosition.collateral || 0n,
           user_borrowed: userPosition.debt || 0n,
+          user_supplied_with_interest: userSuppliedWithInterest,
+          user_borrowed_with_interest: userBorrowedWithInterest,
           wallet_balance: walletBalance,
           wallet_balance_private: walletBalancePrivate,
-          borrowable_value_usd: 0n // Add default value, will be updated in updateUserPosition
+          borrowable_value_usd: 0n,
+          deposit_accumulator: {
+            value: accumulators[0]?.value || 0n,
+            last_updated_ts: Number(accumulators[0]?.last_updated_ts) || 0
+          },
+          borrow_accumulator: {
+            value: accumulators[1]?.value || 0n,
+            last_updated_ts: Number(accumulators[1]?.last_updated_ts) || 0
+          }
         };
       });
       
