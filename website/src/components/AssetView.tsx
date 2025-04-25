@@ -123,6 +123,14 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
         </div>
         
         <div className="overview-item">
+          <div className="overview-label">Market Liquidity</div>
+          <div className="overview-value">
+            {formatTokenAmount(asset.market_liquidity, asset.decimals)} {asset.ticker}
+            <div className="secondary-value">${formatUsdValue(tokenToUsd(asset.market_liquidity, asset.decimals, asset.price), asset.decimals)}</div>
+          </div>
+        </div>
+        
+        <div className="overview-item">
           <div className="overview-label">Utilization Rate</div>
           <div className="overview-value">
             {formatPercentage(asset.utilization_rate * 100)}
@@ -178,15 +186,6 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
             <div className="action-value">
               {formatTokenAmount(asset.user_supplied_with_interest, asset.decimals)} {asset.ticker}
               <div className="secondary-value">${formatUsdValue(userSuppliedUsd, asset.decimals)}</div>
-            </div>
-            <div className="secondary-info">
-              <span className="secondary-label">Withdrawable:</span>
-              <span className="secondary-value">
-                {formatTokenAmount(availableToWithdraw, asset.decimals)} {asset.ticker}
-                <span className="secondary-usd-value">
-                  (${formatUsdValue(tokenToUsd(availableToWithdraw, asset.decimals, asset.price), asset.decimals)})
-                </span>
-              </span>
             </div>
           </div>
           <button 

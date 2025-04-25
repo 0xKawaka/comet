@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Asset } from '../contexts/LendingContext';
 import { formatTokenAmount } from '../utils/formatters';
+import HealthFactorPreview from './HealthFactorPreview';
 
 interface ActionModalProps {
   isOpen: boolean;
@@ -98,6 +99,12 @@ const ActionModal = ({
               MAX
             </button>
           </div>
+          
+          <HealthFactorPreview 
+            asset={asset}
+            actionType={actionType}
+            amount={amount}
+          />
           
           <div className="privacy-toggle-container" style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>Private Transaction</span>

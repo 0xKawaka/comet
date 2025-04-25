@@ -695,3 +695,71 @@ span.borrow-rate, div.borrow-rate {
   width: auto;
 }
 
+/* Health Factor Preview Styles */
+.health-factor-preview {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 16px;
+  border: 1px solid #e9ecef;
+}
+
+.health-factor-preview-title {
+  margin-bottom: 6px;
+  font-weight: bold;
+  font-size: 0.8rem;
+  color: #333;
+}
+
+.health-factor-preview-comparison {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.health-factor-preview-values {
+  display: flex;
+  align-items: center;
+}
+
+.health-factor-preview .health-factor-value {
+  font-size: 0.95rem;
+  font-weight: bold;
+}
+
+.health-factor-preview-arrow {
+  color: #666;
+  font-size: 1rem;
+  margin: 0 6px;
+}
+
+.health-factor-preview-change {
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.health-factor-preview-change.improving {
+  color: #1e8a3e;
+}
+
+.health-factor-preview-change.declining {
+  color: #d32f2f;
+}
+
+.health-factor-preview-warning {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.health-factor-preview-warning.danger {
+  color: #d32f2f;
+  font-weight: bold;
+}
+
+.health-factor-preview-warning.caution {
+  color: #e65100;
+}
+
