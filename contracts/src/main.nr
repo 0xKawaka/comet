@@ -212,9 +212,9 @@ pub contract Lending {
             let deposit_accumulator_loc = storage.deposit_accumulators.at(market_id).at(market_asset);
             let deposit_accumulator: Accumulator = deposit_accumulator_loc.read();
             let collateral_amount = (scaled_collateral_amount * deposit_accumulator.value) / 1000000000 as u128;
-            total_collateral_value += (collateral_amount * collateral_price) / 10000 as u128;
+            total_collateral_value += (collateral_amount * collateral_price);
         }
-        total_collateral_value
+        total_collateral_value / 1000000000 as u128
     }
 
     #[public]

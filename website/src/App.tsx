@@ -5,6 +5,7 @@ import HealthFactorIndicator from './components/HealthFactorIndicator';
 import MarketsView from './components/MarketsView';
 import UserDashboardView from './components/UserDashboardView';
 import AssetView from './components/AssetView';
+import logo from './assets/logo.png';
 import './App.css';
 
 const PXE_URL = import.meta.env.VITE_PXE_URL || 'http://localhost:8080';
@@ -49,6 +50,9 @@ function App() {
     <div className="app-container">
       <header className="app-header">
         <div className="app-header-left">
+          <div className="app-logo">
+            <img src={logo} alt="Logo" className="header-logo" />
+          </div>
           <WalletInfo />
         </div>
         <div className="app-header-right">

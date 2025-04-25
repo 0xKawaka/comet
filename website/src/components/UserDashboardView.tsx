@@ -39,27 +39,22 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
         maxAmount = asset.wallet_balance;
         break;
       case 'withdraw':
-        maxAmount = asset.user_supplied_with_interest;
+        // Consider withdrawable amount and market liquidity constraints
+        const availableToWithdraw = asset.withdrawable_amount < asset.market_liquidity 
+          ? asset.withdrawable_amount 
+          : asset.market_liquidity;
+        maxAmount = availableToWithdraw;
         break;
       case 'borrow':
-        // Calculate max borrowable based on collateral and LTV
-        const collateralValue = depositedAssets.reduce((total, asset) => {
-          const value = tokenToUsd(asset.user_supplied_with_interest, asset.decimals, asset.price);
-          const ltvBps = BigInt(Math.floor(asset.loan_to_value * 10000));
-          return total + (value * ltvBps) / PERCENTAGE_PRECISION_FACTOR;
-        }, 0n);
+        // Use borrowable_value_usd from the asset instead of manual calculation
+        const borrowableAmount = usdToToken(asset.borrowable_value_usd, asset.decimals, asset.price);
         
-        // Subtract already borrowed value
-        const borrowedValue = borrowedAssets.reduce((total, asset) => {
-          return total + tokenToUsd(asset.user_borrowed_with_interest, asset.decimals, asset.price);
-        }, 0n);
+        // Consider market liquidity constraints
+        const availableToBorrow = borrowableAmount < asset.market_liquidity 
+          ? borrowableAmount 
+          : asset.market_liquidity;
         
-        const maxBorrowableValue = collateralValue > borrowedValue 
-          ? collateralValue - borrowedValue 
-          : 0n;
-        
-        // Convert max borrowable value back to asset tokens
-        maxAmount = usdToToken(maxBorrowableValue, asset.decimals, asset.price);
+        maxAmount = availableToBorrow;
         break;
       case 'repay':
         maxAmount = asset.user_borrowed_with_interest < asset.wallet_balance 
@@ -171,6 +166,11 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                 );
                 const supplyRate = formatPercentage(asset.supply_rate * 100);
                 
+                // Calculate withdrawable amount with constraints
+                const availableToWithdraw = asset.withdrawable_amount < asset.market_liquidity 
+                  ? asset.withdrawable_amount 
+                  : asset.market_liquidity;
+                
                 return (
                   <tr key={asset.id} onClick={() => onAssetSelect(asset.id)}>
                     <td>
@@ -195,6 +195,7 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                       <button 
                         className="action-button withdraw-button" 
                         onClick={() => openModal(asset, 'withdraw')}
+                        disabled={availableToWithdraw === 0n}
                       >
                         Withdraw
                       </button>
@@ -236,6 +237,12 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                 );
                 const borrowRate = formatPercentage(asset.borrow_rate * 100);
                 
+                // Calculate borrowable amount with constraints
+                const borrowableAmount = usdToToken(asset.borrowable_value_usd, asset.decimals, asset.price);
+                const availableToBorrow = borrowableAmount < asset.market_liquidity 
+                  ? borrowableAmount 
+                  : asset.market_liquidity;
+                
                 return (
                   <tr key={asset.id} onClick={() => onAssetSelect(asset.id)}>
                     <td>
@@ -253,7 +260,8 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                       <button 
                         className="action-button borrow-button" 
                         onClick={() => openModal(asset, 'borrow')}
-                        disabled={userPosition.health_factor < 1.05}
+                        disabled={userPosition.health_factor < 1.05 || availableToBorrow === 0n}
+                        title={userPosition.health_factor < 1.05 ? "Health factor too low" : availableToBorrow === 0n ? "No assets available to borrow" : ""}
                       >
                         Borrow
                       </button>

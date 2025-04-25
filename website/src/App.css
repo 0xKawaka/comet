@@ -497,8 +497,27 @@
 
 .action-value {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 500;
   color: #333;
+}
+
+.secondary-info {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #666;
+  display: flex;
+  align-items: center;
+}
+
+.secondary-label {
+  margin-right: 6px;
+  font-weight: 500;
+}
+
+.secondary-usd-value {
+  margin-left: 5px;
+  font-size: 12px;
+  color: #888;
 }
 
 /* Modal Styles */
@@ -663,5 +682,16 @@ span.borrow-rate, div.borrow-rate {
 .app-header-left, .app-header-right {
   display: flex;
   align-items: center;
+}
+
+.app-logo {
+  margin-right: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.header-logo {
+  height: 50px;
+  width: auto;
 }
 

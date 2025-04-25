@@ -50,12 +50,8 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
   const borrowableValueUsd = asset.borrowable_value_usd;
   const borrowableAmount = usdToToken(borrowableValueUsd, asset.decimals, asset.price);
   
-  // Check if there's enough liquidity in the market
-  const marketLiquidity = asset.total_supplied_with_interest > asset.total_borrowed_with_interest 
-    ? asset.total_supplied_with_interest - asset.total_borrowed_with_interest 
-    : 0n;
-  
-  const availableToBorrow = borrowableAmount < marketLiquidity ? borrowableAmount : marketLiquidity;
+  const availableToBorrow = borrowableAmount < asset.market_liquidity ? borrowableAmount : asset.market_liquidity;
+  const availableToWithdraw = asset.withdrawable_amount < asset.market_liquidity ? asset.withdrawable_amount : asset.market_liquidity;
 
   const openModal = (type: 'deposit' | 'withdraw' | 'borrow' | 'repay') => {
     let max = 0n;
@@ -65,7 +61,7 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
         max = asset.wallet_balance;
         break;
       case 'withdraw':
-        max = asset.user_supplied_with_interest;
+        max = availableToWithdraw;
         break;
       case 'borrow':
         max = availableToBorrow;
@@ -170,6 +166,7 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
             className="action-button supply-button" 
             onClick={() => openModal('deposit')}
             disabled={asset.wallet_balance === 0n}
+            title={asset.wallet_balance === 0n ? "No tokens in wallet to supply" : ""}
           >
             Supply
           </button>
@@ -182,11 +179,21 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
               {formatTokenAmount(asset.user_supplied_with_interest, asset.decimals)} {asset.ticker}
               <div className="secondary-value">${formatUsdValue(userSuppliedUsd, asset.decimals)}</div>
             </div>
+            <div className="secondary-info">
+              <span className="secondary-label">Withdrawable:</span>
+              <span className="secondary-value">
+                {formatTokenAmount(availableToWithdraw, asset.decimals)} {asset.ticker}
+                <span className="secondary-usd-value">
+                  (${formatUsdValue(tokenToUsd(availableToWithdraw, asset.decimals, asset.price), asset.decimals)})
+                </span>
+              </span>
+            </div>
           </div>
           <button 
             className="action-button withdraw-button" 
             onClick={() => openModal('withdraw')}
-            disabled={asset.user_supplied_with_interest === 0n}
+            disabled={availableToWithdraw === 0n}
+            title={availableToWithdraw === 0n ? "No funds available to withdraw" : ""}
           >
             Withdraw
           </button>
@@ -206,6 +213,7 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
             className="action-button borrow-button" 
             onClick={() => openModal('borrow')}
             disabled={!asset.is_borrowable || availableToBorrow === 0n}
+            title={!asset.is_borrowable ? "Asset not borrowable" : availableToBorrow === 0n ? "No assets available to borrow" : ""}
           >
             Borrow
           </button>
@@ -223,6 +231,7 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
             className="action-button repay-button" 
             onClick={() => openModal('repay')}
             disabled={asset.user_borrowed_with_interest === 0n || asset.wallet_balance === 0n}
+            title={asset.user_borrowed_with_interest === 0n ? "No outstanding debt to repay" : asset.wallet_balance === 0n ? "No tokens in wallet to repay with" : ""}
           >
             Repay
           </button>

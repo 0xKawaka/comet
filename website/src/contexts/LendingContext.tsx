@@ -37,6 +37,7 @@ export interface Asset {
   wallet_balance: bigint;
   wallet_balance_private: bigint;
   borrowable_value_usd: bigint; // Added field for globally calculated borrowable value in USD
+  market_liquidity: bigint; // Available liquidity in the market (total_supplied - total_borrowed)
   deposit_accumulator: {
     value: bigint;
     last_updated_ts: number;
@@ -45,6 +46,7 @@ export interface Asset {
     value: bigint;
     last_updated_ts: number;
   };
+  withdrawable_amount: bigint;
 }
 
 interface UserPosition {
@@ -283,6 +285,11 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           accumulators[1]?.last_updated_ts || 0
         );
         
+        // Calculate market liquidity (available liquidity)
+        const marketLiquidity = totalSuppliedWithInterest > totalBorrowedWithInterest 
+          ? totalSuppliedWithInterest - totalBorrowedWithInterest 
+          : 0n;
+        
         return {
           id,
           address: assetAddress,
@@ -308,6 +315,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           wallet_balance: walletBalance,
           wallet_balance_private: walletBalancePrivate,
           borrowable_value_usd: 0n, // Add default value, will be updated in updateUserPosition
+          market_liquidity: marketLiquidity,
           deposit_accumulator: {
             value: accumulators[0]?.value || 0n,
             last_updated_ts: Number(accumulators[0]?.last_updated_ts) || 0
@@ -315,7 +323,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           borrow_accumulator: {
             value: accumulators[1]?.value || 0n,
             last_updated_ts: Number(accumulators[1]?.last_updated_ts) || 0
-          }
+          },
+          withdrawable_amount: 0n
         };
       });
 
@@ -359,26 +368,23 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       ? parseFloat(formatUnits(totalSuppliedValue * BigInt(PERCENTAGE_PRECISION_FACTOR) / collateralValueNeeded, PERCENTAGE_PRECISION))
       : Infinity;
     
-    // Calculate maximum borrowable value based on user's supplied collateral
-    const maxBorrowableValueFromCollateral = totalSuppliedValue > collateralValueNeeded 
-      ? totalSuppliedValue - collateralValueNeeded 
+    // Calculate excess collateral value
+    const excessCollateralValueUsd = totalSuppliedValue > collateralValueNeeded
+      ? totalSuppliedValue - collateralValueNeeded
       : 0n;
 
     // Update borrowable value for each asset based on both available liquidity and user's borrowing capacity
     for (const asset of assetsArray) {
       if (asset.is_borrowable) {
-        // Calculate available liquidity of the asset in the pool (in USD)
-        const availableLiquidity = asset.total_supplied > asset.total_borrowed 
-          ? asset.total_supplied - asset.total_borrowed 
-          : 0n;
-        const availableLiquidityUsd = tokenToUsd(availableLiquidity, asset.decimals, asset.price);
+        // Convert market liquidity to USD using the asset's price and decimals
+        const marketLiquidityUsd = tokenToUsd(asset.market_liquidity, asset.decimals, asset.price);
         
         // Calculate maximum amount user can borrow based on collateral and this asset's LTV
-        const maxBorrowableUsd = applyLtv(maxBorrowableValueFromCollateral, asset.loan_to_value);
+        const maxBorrowableUsd = applyLtv(excessCollateralValueUsd, asset.loan_to_value);
         
-        // Borrowable value is the minimum of available liquidity and maximum borrowable based on collateral
-        asset.borrowable_value_usd = availableLiquidityUsd < maxBorrowableUsd 
-          ? availableLiquidityUsd 
+        // Borrowable value is the minimum of market liquidity (in USD) and maximum borrowable based on collateral
+        asset.borrowable_value_usd = marketLiquidityUsd < maxBorrowableUsd 
+          ? marketLiquidityUsd 
           : maxBorrowableUsd;
       } else {
         asset.borrowable_value_usd = 0n;
@@ -390,6 +396,27 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       total_supplied_value: totalSuppliedValue,
       total_borrowed_value: totalBorrowedValue
     });
+
+    // Calculate withdrawable amount for each asset
+    for (const asset of assetsArray) {
+      // Calculate withdrawable amount for this specific asset
+      if (asset.user_supplied_with_interest === 0n) {
+        // If user hasn't supplied this asset, they can't withdraw any
+        asset.withdrawable_amount = 0n;
+      } else {
+        // Convert asset-specific supplied value to USD
+        const assetSuppliedValueUsd = tokenToUsd(
+          asset.user_supplied_with_interest, 
+          asset.decimals, 
+          asset.price
+        );
+        if(assetSuppliedValueUsd > excessCollateralValueUsd){
+          asset.withdrawable_amount =  usdToToken(excessCollateralValueUsd, asset.decimals, asset.price);
+        } else{
+          asset.withdrawable_amount = asset.user_supplied_with_interest;
+        }
+      }
+    }
   };
 
   const depositAsset = async (assetId: string, amount: string, isPrivate: boolean) => {
@@ -721,6 +748,11 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           accumulators[1]?.last_updated_ts || 0
         );
         
+        // Calculate market liquidity (available liquidity)
+        const marketLiquidity = totalSuppliedWithInterest > totalBorrowedWithInterest 
+          ? totalSuppliedWithInterest - totalBorrowedWithInterest 
+          : 0n;
+        
         return {
           id,
           address: assetAddress,
@@ -746,6 +778,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           wallet_balance: walletBalance,
           wallet_balance_private: walletBalancePrivate,
           borrowable_value_usd: 0n,
+          market_liquidity: marketLiquidity,
           deposit_accumulator: {
             value: accumulators[0]?.value || 0n,
             last_updated_ts: Number(accumulators[0]?.last_updated_ts) || 0
@@ -753,7 +786,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           borrow_accumulator: {
             value: accumulators[1]?.value || 0n,
             last_updated_ts: Number(accumulators[1]?.last_updated_ts) || 0
-          }
+          },
+          withdrawable_amount: 0n
         };
       });
       
