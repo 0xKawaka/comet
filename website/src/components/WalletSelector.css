@@ -1,0 +1,142 @@
+.wallet-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: rgba(131, 98, 255, 0.1);
+  border: 1px solid #8362ff;
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wallet-button:hover {
+  background-color: rgba(131, 98, 255, 0.2);
+}
+
+.wallet-connected {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(54, 57, 82, 0.3);
+  border: 1px solid #363952;
+  border-radius: 0.5rem;
+  color: #ffffff;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wallet-connected:hover {
+  background-color: rgba(54, 57, 82, 0.5);
+}
+
+.wallet-info-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9fa1b2;
+}
+
+.wallet-info-loader {
+  animation: spin 1s linear infinite;
+}
+
+.wallet-selector {
+  position: relative;
+}
+
+.wallet-address {
+  font-family: monospace;
+}
+
+.wallet-badge {
+  color: white;
+  background-color: #10b981;
+  font-size: 0.75rem;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  margin-left: 0.5rem;
+}
+
+.wallet-icon {
+  background-color: #7531fd;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.wallet-dropdown-icon {
+  transform: rotate(0);
+  transition: transform 0.2s ease;
+}
+
+.wallet-dropdown-icon.open {
+  transform: rotate(180deg);
+}
+
+.wallet-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  width: 100%;
+  background-color: #22253a;
+  border-radius: 0.5rem;
+  border: 1px solid #363952;
+  z-index: 10;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  padding: 0.5rem;
+}
+
+.wallet-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  width: 100%;
+  text-align: left;
+  background-color: transparent;
+  border: none;
+  border-radius: 0.25rem;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.wallet-option:hover {
+  background-color: rgba(117, 49, 253, 0.1);
+}
+
+.wallet-option.selected {
+  background-color: rgba(117, 49, 253, 0.2);
+  color: #d9fbff;
+}
+
+.wallet-option-icon {
+  background-color: #363952;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.wallet-option-icon.selected {
+  background-color: #7531fd;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+} 

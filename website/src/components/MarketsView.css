@@ -1,0 +1,167 @@
+.markets-container {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.markets-title {
+  font-size: 1.75rem;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  color: white;
+}
+
+.markets-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: #9fa1b2;
+}
+
+.markets-loader {
+  animation: spin 1s linear infinite;
+}
+
+.markets-empty {
+  padding: 2rem;
+  border-radius: 0.5rem;
+  background-color: rgba(34, 37, 58, 0.5);
+  color: #9fa1b2;
+}
+
+.markets-table-container {
+  overflow-x: auto;
+}
+
+.markets-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: white;
+}
+
+.markets-table th {
+  text-align: left;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(54, 57, 82, 0.5);
+  font-weight: 600;
+  color: #9fa1b2;
+  font-size: 0.875rem;
+}
+
+.markets-table th.right {
+  text-align: right;
+}
+
+.markets-table td {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(54, 57, 82, 0.5);
+}
+
+.markets-table td.right {
+  text-align: right;
+}
+
+.market-row {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.market-row:hover {
+  background-color: rgba(117, 49, 253, 0.1);
+}
+
+.asset-icon {
+  background-color: #363952;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: white;
+}
+
+.asset-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.asset-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.asset-ticker {
+  color: #9fa1b2;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.secondary-text {
+  color: #9fa1b2;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.price-display {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  font-family: monospace;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #d9fbff;
+}
+
+.utilization-badge {
+  display: inline-block;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  background-color: rgba(117, 49, 253, 0.15);
+  color: #8a8dff;
+}
+
+.utilization-badge-content {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.supply-rate {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.borrow-rate {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.ltv-display {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+} 

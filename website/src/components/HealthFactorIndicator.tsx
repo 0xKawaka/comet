@@ -1,67 +1,60 @@
 import { useLending } from '../contexts/LendingContext';
 import { formatHealthFactor, getHealthFactorClass } from '../utils/formatters';
 import { FiActivity } from 'react-icons/fi';
+import './HealthFactorIndicator.css';
 
-const HealthFactorIndicator = () => {
+interface HealthFactorIndicatorProps {
+  healthFactor?: number; // Optional - will use context if not provided
+  size?: 'small' | 'large'; // Size variant
+  showLabel?: boolean; // Whether to show the "Health Factor" label
+  className?: string; // Additional CSS classes
+  standalone?: boolean; // Whether to render as a standalone component or inline
+}
+
+const HealthFactorIndicator = ({
+  healthFactor: propHealthFactor,
+  size = 'small',
+  showLabel = true,
+  className = '',
+  standalone = true
+}: HealthFactorIndicatorProps) => {
   const { userPosition, isLoading } = useLending();
   
-  // Don't show anything if loading or no borrowed value
-  if (isLoading || userPosition.total_borrowed_value === 0n) {
+  // Only hide if loading and no health factor was provided
+  if (isLoading && propHealthFactor === undefined) {
     return null;
   }
   
-  const healthFactor = userPosition.health_factor;
+  // If health factor is provided as prop, use it; otherwise use from context
+  let healthFactorValue = propHealthFactor !== undefined 
+    ? propHealthFactor 
+    : userPosition.total_borrowed_value === 0n 
+      ? Infinity 
+      : userPosition.health_factor;
   
-  // Define colors based on health factor
-  const getHealthFactorStyle = (factor: bigint) => {
-    if (factor >= 200n) { // Safe
-      return {
-        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-        borderColor: 'rgba(16, 185, 129, 0.5)',
-        color: '#10b981'
-      };
-    } else if (factor >= 120n) { // Warning
-      return {
-        backgroundColor: 'rgba(245, 158, 11, 0.15)',
-        borderColor: 'rgba(245, 158, 11, 0.5)',
-        color: '#f59e0b'
-      };
-    } else { // Danger
-      return {
-        backgroundColor: 'rgba(239, 68, 68, 0.15)',
-        borderColor: 'rgba(239, 68, 68, 0.5)', 
-        color: '#ef4444'
-      };
-    }
-  };
+  // Get the appropriate class based on health factor
+  const healthClassName = getHealthFactorClass(healthFactorValue);
   
-  const healthStyle = getHealthFactorStyle(healthFactor);
+  // Combine base class and size variant with custom class
+  const containerClassName = `
+    health-factor-indicator 
+    ${healthClassName} 
+    health-factor-${size}
+    ${standalone ? '' : 'health-factor-inline'}
+    ${className}
+  `.trim();
   
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      padding: '0.375rem 0.75rem',
-      borderRadius: '0.5rem',
-      border: `1px solid ${healthStyle.borderColor}`,
-      backgroundColor: healthStyle.backgroundColor,
-      gap: '0.5rem'
-    }}>
-      <FiActivity style={{ color: healthStyle.color }} />
-      <div>
-        <span style={{
-          fontSize: '0.75rem',
-          opacity: 0.7,
-          display: 'block'
-        }}>
-          Health Factor
-        </span>
-        <span style={{
-          fontSize: '0.875rem',
-          fontWeight: 600,
-          color: healthStyle.color
-        }}>
-          {formatHealthFactor(healthFactor)}
+    <div className={containerClassName}>
+      <FiActivity className="health-factor-icon" />
+      <div className="health-factor-content">
+        {showLabel && (
+          <span className="health-factor-label">
+            Health Factor
+          </span>
+        )}
+        <span className="health-factor-value">
+          {formatHealthFactor(healthFactorValue)}
         </span>
       </div>
     </div>

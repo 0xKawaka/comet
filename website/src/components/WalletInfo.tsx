@@ -1,26 +1,22 @@
 import { useAddress } from '../hooks';
 import WalletSelector from './WalletSelector';
 import { FiLoader } from 'react-icons/fi';
+import './WalletInfo.css';
 
 const WalletInfo = () => {
   const { address, isLoading } = useAddress();
 
   if (isLoading) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        color: '#9fa1b2'
-      }}>
-        <FiLoader style={{ animation: 'spin 1s linear infinite' }} />
+      <div className="wallet-info-loading">
+        <FiLoader className="wallet-info-loader" />
         <span>Loading wallet...</span>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center' }}>
+    <div className="wallet-info-container">
       <WalletSelector />
     </div>
   );

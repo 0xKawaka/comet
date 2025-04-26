@@ -4,55 +4,37 @@ import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/fo
 import { tokenToUsd, usdToToken, applyLtv } from '../utils/precisionConstants';
 import ActionModal from './ActionModal';
 import { FiArrowLeft, FiDollarSign, FiPercent, FiActivity, FiTrendingUp, FiLock, FiUnlock, FiLoader } from 'react-icons/fi';
+import './AssetView.css';
 
 interface AssetViewProps {
   assetId: string;
   onBack: () => void;
+  previousView?: string;
 }
 
-const AssetView = ({ assetId, onBack }: AssetViewProps) => {
+const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps) => {
   const { assets, isLoading, depositAsset, withdrawAsset, borrowAsset, repayAsset, userPosition } = useLending();
   
   const [modalOpen, setModalOpen] = useState(false);
   const [actionType, setActionType] = useState<'deposit' | 'withdraw' | 'borrow' | 'repay'>('deposit');
   const [maxAmount, setMaxAmount] = useState<bigint>(0n);
 
+  const getBackButtonText = () => {
+    return `Back to ${previousView === 'dashboard' ? 'Dashboard' : 'Markets'}`;
+  };
+
   if (isLoading) {
     return (
-      <div style={{ padding: '1rem 0' }}>
-        <div style={{ 
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          marginBottom: '1rem'
-        }}>
-          <button 
-            onClick={onBack}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              backgroundColor: 'transparent',
-              color: '#8a8dff',
-              border: 'none',
-              padding: '0.5rem',
-              borderRadius: '0.375rem',
-              fontWeight: '500',
-              cursor: 'pointer'
-            }}
-          >
-          </button>
-        </div>
+      <div className="asset-view-container">
+        <button 
+          onClick={onBack}
+          className="back-button"
+        >
+          <FiArrowLeft /> {getBackButtonText()}
+        </button>
         
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          gap: '0.75rem', 
-          color: '#9fa1b2',
-          padding: '3rem 0' 
-        }}>
-          <FiLoader style={{ animation: 'spin 1s linear infinite' }} />
+        <div className="loading-container">
+          <FiLoader className="spinning" />
           <span>Loading asset data...</span>
         </div>
       </div>
@@ -63,38 +45,15 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
   
   if (!asset) {
     return (
-      <div style={{ padding: '1rem 0' }}>
-        <div style={{ 
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          marginBottom: '1rem'
-        }}>
-          <button 
-            onClick={onBack}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              backgroundColor: 'transparent',
-              color: '#8a8dff',
-              border: 'none',
-              padding: '0.5rem',
-              borderRadius: '0.375rem',
-              fontWeight: '500',
-              cursor: 'pointer'
-            }}
-          >
-          </button>
-        </div>
+      <div className="asset-view-container">
+        <button 
+          onClick={onBack}
+          className="back-button"
+        >
+          <FiArrowLeft /> {getBackButtonText()}
+        </button>
         
-        <div style={{
-          textAlign: 'center',
-          padding: '2rem',
-          borderRadius: '0.5rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.5)',
-          color: '#9fa1b2'
-        }}>
+        <div className="not-found-container">
           Asset not found.
         </div>
       </div>
@@ -108,8 +67,7 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
   const userBorrowedUsd = tokenToUsd(asset.user_borrowed_with_interest, asset.decimals, asset.price);
   
   const ltvBps = BigInt(Math.floor(asset.loan_to_value * 10000));
-  const borrowableValueUsd = asset.borrowable_value_usd;
-  const borrowableAmount = usdToToken(borrowableValueUsd, asset.decimals, asset.price);
+  const borrowableAmount = usdToToken(asset.borrowable_value_usd, asset.decimals, asset.price);
   
   const availableToBorrow = borrowableAmount < asset.market_liquidity ? borrowableAmount : asset.market_liquidity;
   const availableToWithdraw = asset.withdrawable_amount < asset.market_liquidity ? asset.withdrawable_amount : asset.market_liquidity;
@@ -156,55 +114,23 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
   };
 
   return (
-    <div style={{ 
-      minHeight: '100%',
-      width: '100%',
-      paddingBottom: '1rem'
-    }}>
-      <div style={{ 
-        display: 'flex',
-        alignItems: 'center',
-        flexDirection: 'column',
-        marginBottom: '1.5rem'
-      }}>
-
-        <div style={{ 
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-          width: '100%'
-        }}>
-          <div style={{ 
-            backgroundColor: '#363952', 
-            width: '3rem', 
-            height: '3rem', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            borderRadius: '50%',
-            color: 'white',
-            fontSize: '1.125rem',
-            fontWeight: '700'
-          }}>
+    <div className="asset-view-container">
+      <div className="asset-header">
+        <button 
+          onClick={onBack} 
+          className="back-button"
+        >
+          <FiArrowLeft /> {getBackButtonText()}
+        </button>
+        <div className="asset-title-container">
+          <div className="asset-icon">
             {asset.ticker.charAt(0)}
           </div>
           <div>
-            <h1 style={{ 
-              fontSize: '1.5rem',
-              fontWeight: '700',
-              margin: '0 0 0.25rem 0',
-              color: 'white'
-            }}>
-              {asset.name} <span style={{ color: '#9fa1b2', fontWeight: '500' }}>({asset.ticker})</span>
+            <h1 className="asset-title">
+              {asset.name} <span className="asset-ticker">({asset.ticker})</span>
             </h1>
-            <div style={{ 
-              fontSize: '1.125rem',
-              color: '#d9fbff',
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.25rem'
-            }}>
+            <div className="asset-price">
               <FiDollarSign />
               {formatUsdValue(asset.price, asset.decimals)}
             </div>
@@ -212,318 +138,117 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
         </div>
       </div>
       
-      <div style={{ 
-        marginBottom: '2rem',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-        gap: '1rem'
-      }}>
-        <div style={{ 
-          padding: '1.25rem',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.6)',
-          backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(54, 57, 82, 0.5)',
-        }}>
-          <div style={{ 
-            color: '#9fa1b2',
-            fontSize: '0.875rem',
-            marginBottom: '0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-label">
             <FiDollarSign size={14} />
             <span>Total Supplied</span>
           </div>
-          <div style={{ 
-            fontSize: '1.125rem',
-            fontWeight: '600',
-            color: 'white',
-            marginBottom: '0.25rem'
-          }}>
+          <div className="stat-value">
             {formatTokenAmount(asset.total_supplied_with_interest, asset.decimals)} {asset.ticker}
           </div>
-          <div style={{ 
-            fontSize: '0.875rem',
-            color: '#10b981'
-          }}>
+          <div className="stat-value-positive">
             ${formatUsdValue(totalSuppliedUsd, asset.decimals)}
           </div>
         </div>
         
-        <div style={{ 
-          padding: '1.25rem',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.6)',
-          backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(54, 57, 82, 0.5)',
-        }}>
-          <div style={{ 
-            color: '#9fa1b2',
-            fontSize: '0.875rem',
-            marginBottom: '0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
+        <div className="stat-card">
+          <div className="stat-label">
             <FiDollarSign size={14} />
             <span>Total Borrowed</span>
           </div>
-          <div style={{ 
-            fontSize: '1.125rem',
-            fontWeight: '600',
-            color: 'white',
-            marginBottom: '0.25rem'
-          }}>
+          <div className="stat-value">
             {formatTokenAmount(asset.total_borrowed_with_interest, asset.decimals)} {asset.ticker}
           </div>
-          <div style={{ 
-            fontSize: '0.875rem',
-            color: '#ef4444'
-          }}>
+          <div className="stat-value-negative">
             ${formatUsdValue(totalBorrowedUsd, asset.decimals)}
           </div>
         </div>
         
-        <div style={{ 
-          padding: '1.25rem',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.6)',
-          backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(54, 57, 82, 0.5)',
-        }}>
-          <div style={{ 
-            color: '#9fa1b2',
-            fontSize: '0.875rem',
-            marginBottom: '0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
+        <div className="stat-card">
+          <div className="stat-label">
             <FiDollarSign size={14} />
             <span>Market Liquidity</span>
           </div>
-          <div style={{ 
-            fontSize: '1.125rem',
-            fontWeight: '600',
-            color: 'white',
-            marginBottom: '0.25rem'
-          }}>
+          <div className="stat-value">
             {formatTokenAmount(asset.market_liquidity, asset.decimals)} {asset.ticker}
           </div>
-          <div style={{ 
-            fontSize: '0.875rem',
-            color: '#9fa1b2'
-          }}>
+          <div className="stat-subvalue">
             ${formatUsdValue(tokenToUsd(asset.market_liquidity, asset.decimals, asset.price), asset.decimals)}
           </div>
         </div>
         
-        <div style={{ 
-          padding: '1.25rem',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.6)',
-          backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(54, 57, 82, 0.5)',
-        }}>
-          <div style={{ 
-            color: '#9fa1b2',
-            fontSize: '0.875rem',
-            marginBottom: '0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
+        <div className="stat-card">
+          <div className="stat-label">
             <FiActivity size={14} />
             <span>Utilization Rate</span>
           </div>
-          <div style={{ 
-            fontSize: '1.25rem',
-            fontWeight: '600',
-            color: '#8a8dff'
-          }}>
+          <div className="stat-value-highlight">
             {formatPercentage(asset.utilization_rate * 100)}
           </div>
         </div>
         
-        <div style={{ 
-          padding: '1.25rem',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.6)',
-          backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(54, 57, 82, 0.5)',
-        }}>
-          <div style={{ 
-            color: '#9fa1b2',
-            fontSize: '0.875rem',
-            marginBottom: '0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
+        <div className="stat-card">
+          <div className="stat-label">
             <FiTrendingUp size={14} />
             <span>Supply Rate</span>
           </div>
-          <div style={{ 
-            fontSize: '1.25rem',
-            fontWeight: '600',
-            color: '#10b981',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem'
-          }}>
+          <div className="stat-value-positive">
             {formatPercentage(asset.supply_rate * 100)}
           </div>
         </div>
         
-        <div style={{ 
-          padding: '1.25rem',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.6)',
-          backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(54, 57, 82, 0.5)',
-        }}>
-          <div style={{ 
-            color: '#9fa1b2',
-            fontSize: '0.875rem',
-            marginBottom: '0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
+        <div className="stat-card">
+          <div className="stat-label">
             <FiTrendingUp size={14} />
             <span>Borrow Rate</span>
           </div>
-          <div style={{ 
-            fontSize: '1.25rem',
-            fontWeight: '600',
-            color: '#ef4444',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem'
-          }}>
+          <div className="stat-value-negative">
             {formatPercentage(asset.borrow_rate * 100)}
           </div>
         </div>
         
-        <div style={{ 
-          padding: '1.25rem',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.6)',
-          backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(54, 57, 82, 0.5)',
-        }}>
-          <div style={{ 
-            color: '#9fa1b2',
-            fontSize: '0.875rem',
-            marginBottom: '0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
+        <div className="stat-card">
+          <div className="stat-label">
             <FiPercent size={14} />
             <span>Loan to Value</span>
           </div>
-          <div style={{ 
-            fontSize: '1.25rem',
-            fontWeight: '600',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem'
-          }}>
+          <div className="stat-value">
             {formatPercentage(asset.loan_to_value * 100)}
           </div>
         </div>
       </div>
       
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-        gap: '1rem',
-        marginTop: '1rem',
-        width: '100%'
-      }}>
-        <div style={{ 
-          padding: '0.75rem',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.5)',
-          backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(54, 57, 82, 0.5)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          height: '100%'
-        }}>
+      <div className="action-grid">
+        <div className="action-card">
           <div>
-            <div style={{ 
-              fontSize: '1rem',
-              fontWeight: '600',
-              color: 'white',
-              marginBottom: '0.5rem'
-            }}>
+            <div className="card-title">
               Wallet Balance
             </div>
             <div>
-              <div style={{ 
-                display: 'flex',
-                justifyContent: 'flex-start',
-                gap: '2rem',
-                marginBottom: '0.5rem'
-              }}>
+              <div className="balance-container">
                 <div>
-                  <div style={{ 
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    color: '#9fa1b2',
-                    fontSize: '0.75rem',
-                    marginBottom: '0.25rem'
-                  }}>
+                  <div className="balance-type-label">
                     <FiUnlock size={12} />
                     <span>Public</span>
                   </div>
-                  <div style={{ 
-                    fontSize: '1rem',
-                    fontWeight: '500',
-                    color: 'white'
-                  }}>
+                  <div className="balance-value">
                     {formatTokenAmount(asset.wallet_balance, asset.decimals)} {asset.ticker}
                   </div>
-                  <div style={{ 
-                    fontSize: '0.875rem',
-                    color: '#9fa1b2',
-                    marginTop: '0.25rem'
-                  }}>
+                  <div className="balance-usd-value">
                     ${formatUsdValue(tokenToUsd(asset.wallet_balance, asset.decimals, asset.price), asset.decimals)}
                   </div>
                 </div>
                 
                 <div>
-                  <div style={{ 
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    color: '#9fa1b2',
-                    fontSize: '0.75rem',
-                    marginBottom: '0.25rem'
-                  }}>
+                  <div className="balance-type-label">
                     <FiLock size={12} />
                     <span>Private</span>
                   </div>
-                  <div style={{ 
-                    fontSize: '1rem',
-                    fontWeight: '500',
-                    color: 'white'
-                  }}>
+                  <div className="balance-value">
                     {formatTokenAmount(asset.wallet_balance_private, asset.decimals)} {asset.ticker}
                   </div>
-                  <div style={{ 
-                    fontSize: '0.875rem',
-                    color: '#9fa1b2',
-                    marginTop: '0.25rem'
-                  }}>
+                  <div className="balance-usd-value">
                     ${formatUsdValue(tokenToUsd(asset.wallet_balance_private, asset.decimals, asset.price), asset.decimals)}
                   </div>
                 </div>
@@ -535,59 +260,22 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
             onClick={() => openModal('deposit')}
             disabled={asset.wallet_balance === 0n && asset.wallet_balance_private === 0n}
             title={(asset.wallet_balance === 0n && asset.wallet_balance_private === 0n) ? "No tokens in wallet to supply" : ""}
-            style={{
-              background: (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n) 
-                ? '#363952' 
-                : 'linear-gradient(to right, #d9fbff, #7531fd)',
-              color: '#ffffff',
-              padding: '0.5rem',
-              marginTop: '0.75rem',
-              borderRadius: '0.5rem',
-              fontWeight: '600',
-              border: 'none',
-              cursor: (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n) ? 'not-allowed' : 'pointer',
-              opacity: (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n) ? 0.5 : 1,
-              transition: 'all 0.2s',
-              fontSize: '0.875rem'
-            }}
+            className={`action-button ${(asset.wallet_balance === 0n && asset.wallet_balance_private === 0n) ? '' : 'primary-gradient-button'}`}
           >
             Supply
           </button>
         </div>
         
-        <div style={{ 
-          padding: '0.75rem',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.5)',
-          backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(54, 57, 82, 0.5)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          height: '100%'
-        }}>
+        <div className="action-card">
           <div>
-            <div style={{ 
-              fontSize: '1rem',
-              fontWeight: '600',
-              color: 'white',
-              marginBottom: '0.5rem'
-            }}>
+            <div className="card-title">
               Your Deposits
             </div>
             <div>
-              <div style={{ 
-                fontSize: '1rem',
-                fontWeight: '500',
-                color: 'white'
-              }}>
+              <div className="balance-value">
                 {formatTokenAmount(asset.user_supplied_with_interest, asset.decimals)} {asset.ticker}
               </div>
-              <div style={{ 
-                fontSize: '0.875rem',
-                color: '#9fa1b2',
-                marginTop: '0.25rem'
-              }}>
+              <div className="balance-usd-value">
                 ${formatUsdValue(userSuppliedUsd, asset.decimals)}
               </div>
             </div>
@@ -597,57 +285,22 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
             onClick={() => openModal('withdraw')}
             disabled={availableToWithdraw === 0n}
             title={availableToWithdraw === 0n ? "No funds available to withdraw" : ""}
-            style={{
-              backgroundColor: availableToWithdraw === 0n ? '#363952' : '#5f61aa',
-              color: '#ffffff',
-              padding: '0.5rem',
-              marginTop: '0.75rem',
-              borderRadius: '0.5rem',
-              fontWeight: '600',
-              border: 'none',
-              cursor: availableToWithdraw === 0n ? 'not-allowed' : 'pointer',
-              opacity: availableToWithdraw === 0n ? 0.5 : 1,
-              transition: 'all 0.2s',
-              fontSize: '0.875rem'
-            }}
+            className={`action-button ${availableToWithdraw === 0n ? '' : 'secondary-button'}`}
           >
             Withdraw
           </button>
         </div>
         
-        <div style={{ 
-          padding: '0.75rem',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.5)',
-          backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(54, 57, 82, 0.5)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          height: '100%'
-        }}>
+        <div className="action-card">
           <div>
-            <div style={{ 
-              fontSize: '1rem',
-              fontWeight: '600',
-              color: 'white',
-              marginBottom: '0.5rem'
-            }}>
+            <div className="card-title">
               Available to Borrow
             </div>
             <div>
-              <div style={{ 
-                fontSize: '1rem',
-                fontWeight: '500',
-                color: 'white'
-              }}>
+              <div className="balance-value">
                 {formatTokenAmount(availableToBorrow, asset.decimals)} {asset.ticker}
               </div>
-              <div style={{ 
-                fontSize: '0.875rem',
-                color: '#9fa1b2',
-                marginTop: '0.25rem'
-              }}>
+              <div className="balance-usd-value">
                 ${formatUsdValue(tokenToUsd(availableToBorrow, asset.decimals, asset.price), asset.decimals)}
               </div>
             </div>
@@ -657,59 +310,22 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
             onClick={() => openModal('borrow')}
             disabled={!asset.is_borrowable || availableToBorrow === 0n}
             title={!asset.is_borrowable ? "Asset not borrowable" : availableToBorrow === 0n ? "No assets available to borrow" : ""}
-            style={{
-              background: (!asset.is_borrowable || availableToBorrow === 0n) 
-                ? '#363952' 
-                : 'linear-gradient(to right, #d9fbff, #7531fd)',
-              color: '#ffffff',
-              padding: '0.5rem',
-              marginTop: '0.75rem',
-              borderRadius: '0.5rem',
-              fontWeight: '600',
-              border: 'none',
-              cursor: (!asset.is_borrowable || availableToBorrow === 0n) ? 'not-allowed' : 'pointer',
-              opacity: (!asset.is_borrowable || availableToBorrow === 0n) ? 0.5 : 1,
-              transition: 'all 0.2s',
-              fontSize: '0.875rem'
-            }}
+            className={`action-button ${(!asset.is_borrowable || availableToBorrow === 0n) ? '' : 'primary-gradient-button'}`}
           >
             Borrow
           </button>
         </div>
         
-        <div style={{ 
-          padding: '0.75rem',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.5)',
-          backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(54, 57, 82, 0.5)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          height: '100%'
-        }}>
+        <div className="action-card">
           <div>
-            <div style={{ 
-              fontSize: '1rem',
-              fontWeight: '600',
-              color: 'white',
-              marginBottom: '0.5rem'
-            }}>
+            <div className="card-title">
               Your Borrows
             </div>
             <div>
-              <div style={{ 
-                fontSize: '1rem',
-                fontWeight: '500',
-                color: 'white'
-              }}>
+              <div className="balance-value">
                 {formatTokenAmount(asset.user_borrowed_with_interest, asset.decimals)} {asset.ticker}
               </div>
-              <div style={{ 
-                fontSize: '0.875rem',
-                color: '#9fa1b2',
-                marginTop: '0.25rem'
-              }}>
+              <div className="balance-usd-value">
                 ${formatUsdValue(userBorrowedUsd, asset.decimals)}
               </div>
             </div>
@@ -719,21 +335,7 @@ const AssetView = ({ assetId, onBack }: AssetViewProps) => {
             onClick={() => openModal('repay')}
             disabled={asset.user_borrowed_with_interest === 0n || (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n)}
             title={asset.user_borrowed_with_interest === 0n ? "No outstanding debt to repay" : (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n) ? "No tokens in wallet to repay with" : ""}
-            style={{
-              backgroundColor: (asset.user_borrowed_with_interest === 0n || (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n)) 
-                ? '#363952' 
-                : '#5f61aa',
-              color: '#ffffff',
-              padding: '0.5rem',
-              marginTop: '0.75rem',
-              borderRadius: '0.5rem',
-              fontWeight: '600',
-              border: 'none',
-              cursor: (asset.user_borrowed_with_interest === 0n || (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n)) ? 'not-allowed' : 'pointer',
-              opacity: (asset.user_borrowed_with_interest === 0n || (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n)) ? 0.5 : 1,
-              transition: 'all 0.2s',
-              fontSize: '0.875rem'
-            }}
+            className={`action-button ${(asset.user_borrowed_with_interest === 0n || (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n)) ? '' : 'secondary-button'}`}
           >
             Repay
           </button>

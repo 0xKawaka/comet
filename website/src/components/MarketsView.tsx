@@ -1,7 +1,8 @@
 import { useLending } from '../contexts/LendingContext';
 import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
 import { tokenToUsd } from '../utils/precisionConstants';
-import { FiLoader, FiCpu, FiDollarSign, FiTrendingUp, FiPercent, FiActivity } from 'react-icons/fi';
+import { FiLoader, FiDollarSign, FiTrendingUp, FiPercent, FiActivity } from 'react-icons/fi';
+import './MarketsView.css';
 
 interface MarketsViewProps {
   onAssetSelect: (assetId: string) => void;
@@ -12,21 +13,10 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
 
   if (isLoading) {
     return (
-      <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-        <h2 style={{ 
-          fontSize: '1.75rem', 
-          marginBottom: '1rem',
-          fontWeight: '700',
-          color: 'white' 
-        }}>Markets</h2>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          gap: '0.75rem', 
-          color: '#9fa1b2' 
-        }}>
-          <FiLoader style={{ animation: 'spin 1s linear infinite' }} />
+      <div className="markets-container">
+        <h2 className="markets-title">Markets</h2>
+        <div className="markets-loading">
+          <FiLoader className="markets-loader" />
           <span>Loading market data...</span>
         </div>
       </div>
@@ -35,19 +25,9 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
 
   if (assets.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-        <h2 style={{ 
-          fontSize: '1.75rem', 
-          marginBottom: '1rem',
-          fontWeight: '700',
-          color: 'white' 
-        }}>Markets</h2>
-        <div style={{
-          padding: '2rem',
-          borderRadius: '0.5rem',
-          backgroundColor: 'rgba(34, 37, 58, 0.5)',
-          color: '#9fa1b2'
-        }}>
+      <div className="markets-container">
+        <h2 className="markets-title">Markets</h2>
+        <div className="markets-empty">
           No assets available in the protocol.
         </div>
       </div>
@@ -56,86 +36,20 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
 
   return (
     <div>
-      <h2 style={{ 
-        fontSize: '1.75rem', 
-        marginBottom: '1.5rem',
-        fontWeight: '700',
-        color: 'white' 
-      }}>Markets</h2>
+      <h2 className="markets-title">Markets</h2>
       
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{
-          width: '100%',
-          borderCollapse: 'separate',
-          borderSpacing: '0',
-          color: 'white'
-        }}>
+      <div className="markets-table-container">
+        <table className="markets-table">
           <thead>
             <tr>
-              <th style={{
-                textAlign: 'left',
-                padding: '1rem 1.25rem',
-                borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                fontWeight: '600',
-                color: '#9fa1b2',
-                fontSize: '0.875rem'
-              }}>Asset</th>
-              <th style={{
-                textAlign: 'right',
-                padding: '1rem 1.25rem',
-                borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                fontWeight: '600',
-                color: '#9fa1b2',
-                fontSize: '0.875rem'
-              }}>Price</th>
-              <th style={{
-                textAlign: 'right',
-                padding: '1rem 1.25rem',
-                borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                fontWeight: '600',
-                color: '#9fa1b2',
-                fontSize: '0.875rem'
-              }}>Total Supplied</th>
-              <th style={{
-                textAlign: 'right',
-                padding: '1rem 1.25rem',
-                borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                fontWeight: '600',
-                color: '#9fa1b2',
-                fontSize: '0.875rem'
-              }}>Total Borrowed</th>
-              <th style={{
-                textAlign: 'right',
-                padding: '1rem 1.25rem',
-                borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                fontWeight: '600',
-                color: '#9fa1b2',
-                fontSize: '0.875rem'
-              }}>Utilization Rate</th>
-              <th style={{
-                textAlign: 'right',
-                padding: '1rem 1.25rem',
-                borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                fontWeight: '600',
-                color: '#9fa1b2',
-                fontSize: '0.875rem'
-              }}>Supply Rate</th>
-              <th style={{
-                textAlign: 'right',
-                padding: '1rem 1.25rem',
-                borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                fontWeight: '600',
-                color: '#9fa1b2',
-                fontSize: '0.875rem'
-              }}>Borrow Rate</th>
-              <th style={{
-                textAlign: 'right',
-                padding: '1rem 1.25rem',
-                borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                fontWeight: '600',
-                color: '#9fa1b2',
-                fontSize: '0.875rem'
-              }}>Loan to Value</th>
+              <th>Asset</th>
+              <th className="right">Price</th>
+              <th className="right">Total Supplied</th>
+              <th className="right">Total Borrowed</th>
+              <th className="right">Utilization Rate</th>
+              <th className="right">Supply Rate</th>
+              <th className="right">Borrow Rate</th>
+              <th className="right">Loan to Value</th>
             </tr>
           </thead>
           <tbody>
@@ -163,120 +77,55 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
                 <tr 
                   key={asset.id} 
                   onClick={() => onAssetSelect(asset.id)}
-                  style={{ 
-                    cursor: 'pointer',
-                    transition: 'background-color 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(117, 49, 253, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
+                  className="market-row"
                 >
-                  <td style={{
-                    padding: '1rem 1.25rem',
-                    borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <div style={{ 
-                        backgroundColor: '#363952', 
-                        width: '2.5rem', 
-                        height: '2.5rem', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center',
-                        borderRadius: '50%',
-                        color: 'white'
-                      }}>
+                  <td>
+                    <div className="asset-info">
+                      <div className="asset-icon">
                         {asset.ticker.charAt(0)}
                       </div>
                       <div>
-                        <div style={{ fontWeight: '600', fontSize: '1rem' }}>{asset.name}</div>
-                        <div style={{ color: '#9fa1b2', fontSize: '0.875rem', marginTop: '0.25rem' }}>{asset.ticker}</div>
+                        <div className="asset-name">{asset.name}</div>
+                        <div className="asset-ticker">{asset.ticker}</div>
                       </div>
                     </div>
                   </td>
-                  <td style={{
-                    padding: '1rem 1.25rem',
-                    borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                    textAlign: 'right',
-                    fontFamily: 'monospace',
-                    fontSize: '0.875rem',
-                    fontWeight: '600',
-                    color: '#d9fbff'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
+                  <td className="right">
+                    <div className="price-display">
                       <FiDollarSign size={14} />
                       {assetPrice}
                     </div>
                   </td>
-                  <td style={{
-                    padding: '1rem 1.25rem',
-                    borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                    textAlign: 'right'
-                  }}>
-                    <div style={{ fontWeight: '500' }}>{totalSuppliedFormatted} {asset.ticker}</div>
-                    <div style={{ color: '#9fa1b2', fontSize: '0.75rem', marginTop: '0.25rem' }}>${totalSuppliedUsd}</div>
+                  <td className="right">
+                    <div>{totalSuppliedFormatted} {asset.ticker}</div>
+                    <div className="secondary-text">${totalSuppliedUsd}</div>
                   </td>
-                  <td style={{
-                    padding: '1rem 1.25rem',
-                    borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                    textAlign: 'right'
-                  }}>
-                    <div style={{ fontWeight: '500' }}>{totalBorrowedFormatted} {asset.ticker}</div>
-                    <div style={{ color: '#9fa1b2', fontSize: '0.75rem', marginTop: '0.25rem' }}>${totalBorrowedUsd}</div>
+                  <td className="right">
+                    <div>{totalBorrowedFormatted} {asset.ticker}</div>
+                    <div className="secondary-text">${totalBorrowedUsd}</div>
                   </td>
-                  <td style={{
-                    padding: '1rem 1.25rem',
-                    borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                    textAlign: 'right'
-                  }}>
-                    <div style={{ 
-                      display: 'inline-block',
-                      fontWeight: '600',
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '0.375rem',
-                      backgroundColor: 'rgba(117, 49, 253, 0.15)',
-                      color: '#8a8dff'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <td className="right">
+                    <div className="utilization-badge">
+                      <div className="utilization-badge-content">
                         <FiActivity size={14} />
                         {utilizationRate}
                       </div>
                     </div>
                   </td>
-                  <td style={{
-                    padding: '1rem 1.25rem',
-                    borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                    textAlign: 'right',
-                    color: '#10b981',
-                    fontWeight: '600',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
+                  <td className="right">
+                    <div className="supply-rate">
                       <FiTrendingUp size={14} />
                       {supplyRate}
                     </div>
                   </td>
-                  <td style={{
-                    padding: '1rem 1.25rem',
-                    borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                    textAlign: 'right',
-                    color: '#ef4444',
-                    fontWeight: '600',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
+                  <td className="right">
+                    <div className="borrow-rate">
                       <FiTrendingUp size={14} />
                       {borrowRate}
                     </div>
                   </td>
-                  <td style={{
-                    padding: '1rem 1.25rem',
-                    borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                    textAlign: 'right',
-                    fontWeight: '600',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
+                  <td className="right">
+                    <div className="ltv-display">
                       <FiPercent size={14} />
                       {loanToValue}
                     </div>

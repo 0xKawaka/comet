@@ -1,0 +1,24 @@
+.wallet-info-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9fa1b2;
+}
+
+.wallet-info-loader {
+  animation: spin 1s linear infinite;
+}
+
+.wallet-info-container {
+  display: flex;
+  align-items: center;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+} 

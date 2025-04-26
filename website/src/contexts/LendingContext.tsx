@@ -372,6 +372,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     const excessCollateralValueUsd = totalSuppliedValue > collateralValueNeeded
       ? totalSuppliedValue - collateralValueNeeded
       : 0n;
+    console.log("excessCollateralValueUsd", excessCollateralValueUsd);
 
     // Update borrowable value for each asset based on both available liquidity and user's borrowing capacity
     for (const asset of assetsArray) {

@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useLending, Asset } from '../contexts/LendingContext';
-import { formatTokenAmount, formatUsdValue, formatHealthFactor, getHealthFactorClass, formatPercentage } from '../utils/formatters';
+import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
 import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR } from '../utils/precisionConstants';
 import ActionModal from './ActionModal';
-import { FiDollarSign, FiTrendingUp, FiLoader, FiShield, FiActivity } from 'react-icons/fi';
+import { FiDollarSign, FiTrendingUp, FiLoader } from 'react-icons/fi';
+import HealthFactorIndicator from './HealthFactorIndicator';
+import './UserDashboardView.css';
 
 interface UserDashboardViewProps {
   onAssetSelect: (assetId: string) => void;
@@ -21,21 +23,10 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
 
   if (isLoading) {
     return (
-      <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-        <h2 style={{ 
-          fontSize: '1.75rem', 
-          marginBottom: '1rem',
-          fontWeight: '700',
-          color: 'white' 
-        }}>Your Dashboard</h2>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          gap: '0.75rem', 
-          color: '#9fa1b2' 
-        }}>
-          <FiLoader style={{ animation: 'spin 1s linear infinite' }} />
+      <div className="loading-container">
+        <h2 className="dashboard-heading">Your Dashboard</h2>
+        <div className="loading-text">
+          <FiLoader className="loading-icon" />
           <span>Loading your positions...</span>
         </div>
       </div>
@@ -106,148 +97,38 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
   const renderHealthFactor = () => {
     const healthFactor = userPosition.health_factor;
     
-    // Define colors based on health factor
-    let healthStyle = {
-      background: 'rgba(16, 185, 129, 0.15)',
-      borderColor: 'rgba(16, 185, 129, 0.5)',
-      color: '#10b981'
-    };
-    
-    if (healthFactor < 120n) {
-      healthStyle = {
-        background: 'rgba(239, 68, 68, 0.15)',
-        borderColor: 'rgba(239, 68, 68, 0.5)',
-        color: '#ef4444'
-      };
-    } else if (healthFactor < 200n) {
-      healthStyle = {
-        background: 'rgba(245, 158, 11, 0.15)',
-        borderColor: 'rgba(245, 158, 11, 0.5)',
-        color: '#f59e0b'
-      };
-    }
-    
     return (
-      <div style={{ 
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1.5rem',
-        padding: '1.5rem',
-        borderRadius: '0.75rem',
-        backgroundColor: 'rgba(34, 37, 58, 0.5)',
-        backdropFilter: 'blur(4px)',
-        border: '1px solid rgba(54, 57, 82, 0.5)',
-        margin: '0 0 2rem 0'
-      }}>
-        <div style={{ 
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          <h3 style={{ 
-            fontSize: '1.25rem',
-            fontWeight: '600',
-            color: 'white',
-            margin: 0
-          }}>
+      <div className="position-overview">
+        <div className="position-header">
+          <h3 className="position-title">
             Position Overview
           </h3>
         </div>
         
-        <div style={{ 
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '1rem'
-        }}>
-          <div style={{ 
-            flex: '1 1 0',
-            minWidth: '240px',
-            padding: '1.25rem',
-            borderRadius: '0.75rem',
-            backgroundColor: healthStyle.background,
-            border: `1px solid ${healthStyle.borderColor}`,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem'
-          }}>
-            <div style={{ 
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              color: healthStyle.color,
-              fontSize: '0.875rem',
-              fontWeight: '500'
-            }}>
-              <FiShield />
-              <span>Health Factor</span>
-            </div>
-            <div style={{ 
-              fontSize: '1.5rem',
-              fontWeight: '700',
-              color: healthStyle.color
-            }}>
-              {formatHealthFactor(healthFactor)}
-            </div>
+        <div className="position-metrics">
+          <div className="metric-card">
+            <HealthFactorIndicator 
+              healthFactor={healthFactor} 
+              size="large" 
+            />
           </div>
           
-          <div style={{ 
-            flex: '1 1 0',
-            minWidth: '240px',
-            padding: '1.25rem',
-            borderRadius: '0.75rem',
-            backgroundColor: 'rgba(34, 37, 58, 0.5)',
-            border: '1px solid rgba(54, 57, 82, 0.5)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem'
-          }}>
-            <div style={{ 
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              color: '#9fa1b2',
-              fontSize: '0.875rem',
-              fontWeight: '500'
-            }}>
+          <div className="metric-card">
+            <div className="metric-label">
               <FiDollarSign />
               <span>Total Supplied</span>
             </div>
-            <div style={{ 
-              fontSize: '1.5rem',
-              fontWeight: '700',
-              color: '#10b981'
-            }}>
+            <div className="metric-value-positive">
               ${formatUsdValue(userPosition.total_supplied_value, 9)}
             </div>
           </div>
           
-          <div style={{ 
-            flex: '1 1 0',
-            minWidth: '240px',
-            padding: '1.25rem',
-            borderRadius: '0.75rem',
-            backgroundColor: 'rgba(34, 37, 58, 0.5)',
-            border: '1px solid rgba(54, 57, 82, 0.5)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem'
-          }}>
-            <div style={{ 
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              color: '#9fa1b2',
-              fontSize: '0.875rem',
-              fontWeight: '500'
-            }}>
+          <div className="metric-card">
+            <div className="metric-label">
               <FiDollarSign />
               <span>Total Borrowed</span>
             </div>
-            <div style={{ 
-              fontSize: '1.5rem',
-              fontWeight: '700',
-              color: '#ef4444'
-            }}>
+            <div className="metric-value-negative">
               ${formatUsdValue(userPosition.total_borrowed_value, 9)}
             </div>
           </div>
@@ -257,18 +138,8 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
   };
   
   const renderEmptyState = () => (
-    <div style={{
-      textAlign: 'center',
-      padding: '3rem 1rem',
-      backgroundColor: 'rgba(34, 37, 58, 0.5)',
-      borderRadius: '0.75rem',
-      color: '#9fa1b2',
-      border: '1px solid rgba(54, 57, 82, 0.5)',
-    }}>
-      <p style={{ 
-        fontSize: '1.125rem', 
-        marginBottom: '1.5rem' 
-      }}>
+    <div className="empty-state">
+      <p className="empty-state-title">
         You don't have any active positions yet.
       </p>
       <p>Select an asset from the Markets tab to start lending or borrowing.</p>
@@ -276,13 +147,8 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
   );
 
   return (
-    <div>
-      <h2 style={{ 
-        fontSize: '1.75rem', 
-        marginBottom: '1.5rem',
-        fontWeight: '700',
-        color: 'white' 
-      }}>Your Dashboard</h2>
+    <div className="user-dashboard">
+      <h2 className="dashboard-heading">Your Dashboard</h2>
       
       {userPosition.total_borrowed_value > 0 && renderHealthFactor()}
       
@@ -290,90 +156,30 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
         renderEmptyState()
       ) : (
         <>
-          <div style={{ marginBottom: '2rem' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '1rem'
-            }}>
-              <h3 style={{ 
-                fontSize: '1.25rem',
-                fontWeight: '600',
-                color: 'white',
-                margin: 0
-              }}>
+          <div className="section-content">
+            <div className="section-header">
+              <h3 className="section-title">
                 Your Deposits
               </h3>
-              <div style={{
-                fontSize: '0.875rem',
-                fontWeight: '600',
-                color: '#10b981',
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                padding: '0.375rem 0.75rem',
-                borderRadius: '0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem'
-              }}>
+              <div className={`section-total positive-total`}>
                 <FiDollarSign size={14} />
                 <span>Total: ${formatUsdValue(userPosition.total_supplied_value, 9)}</span>
               </div>
             </div>
             
             {depositedAssets.length === 0 ? (
-              <div style={{
-                padding: '1.5rem',
-                backgroundColor: 'rgba(34, 37, 58, 0.5)',
-                borderRadius: '0.75rem',
-                color: '#9fa1b2',
-                textAlign: 'center',
-                border: '1px solid rgba(54, 57, 82, 0.5)',
-              }}>
+              <div className="empty-section">
                 You haven't deposited any assets yet.
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{
-                  width: '100%',
-                  borderCollapse: 'separate',
-                  borderSpacing: '0',
-                  color: 'white'
-                }}>
-                  <thead>
+              <div className="table-container">
+                <table className="assets-table">
+                  <thead className="table-header">
                     <tr>
-                      <th style={{
-                        textAlign: 'left',
-                        padding: '1rem 1.25rem',
-                        borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                        fontWeight: '600',
-                        color: '#9fa1b2',
-                        fontSize: '0.875rem'
-                      }}>Asset</th>
-                      <th style={{
-                        textAlign: 'right',
-                        padding: '1rem 1.25rem',
-                        borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                        fontWeight: '600',
-                        color: '#9fa1b2',
-                        fontSize: '0.875rem'
-                      }}>Deposited Amount</th>
-                      <th style={{
-                        textAlign: 'right',
-                        padding: '1rem 1.25rem',
-                        borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                        fontWeight: '600',
-                        color: '#9fa1b2',
-                        fontSize: '0.875rem'
-                      }}>Supply Rate</th>
-                      <th style={{
-                        textAlign: 'right',
-                        padding: '1rem 1.25rem',
-                        borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                        fontWeight: '600',
-                        color: '#9fa1b2',
-                        fontSize: '0.875rem'
-                      }}>Actions</th>
+                      <th>Asset</th>
+                      <th className="right-align">Deposited Amount</th>
+                      <th className="right-align">Supply Rate</th>
+                      <th className="right-align">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -394,100 +200,45 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                         <tr 
                           key={asset.id} 
                           onClick={() => onAssetSelect(asset.id)}
-                          style={{ 
-                            cursor: 'pointer',
-                            transition: 'background-color 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'rgba(117, 49, 253, 0.1)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }}
+                          className="asset-row"
                         >
-                          <td style={{
-                            padding: '1rem 1.25rem',
-                            borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <div style={{ 
-                                backgroundColor: '#363952', 
-                                width: '2.5rem', 
-                                height: '2.5rem', 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center',
-                                borderRadius: '50%',
-                                color: 'white'
-                              }}>
+                          <td>
+                            <div className="asset-info">
+                              <div className="asset-icon">
                                 {asset.ticker.charAt(0)}
                               </div>
                               <div>
-                                <div style={{ fontWeight: '600', fontSize: '1rem' }}>{asset.name}</div>
-                                <div style={{ color: '#9fa1b2', fontSize: '0.875rem', marginTop: '0.25rem' }}>{asset.ticker}</div>
+                                <div className="asset-name">{asset.name}</div>
+                                <div className="asset-ticker">{asset.ticker}</div>
                               </div>
                             </div>
                           </td>
-                          <td style={{
-                            padding: '1rem 1.25rem',
-                            borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                            textAlign: 'right'
-                          }}>
-                            <div style={{ fontWeight: '500' }}>{suppliedFormatted} {asset.ticker}</div>
-                            <div style={{ color: '#9fa1b2', fontSize: '0.75rem', marginTop: '0.25rem' }}>${suppliedValueUsd}</div>
+                          <td className="amount-cell">
+                            <div className="amount-primary">{suppliedFormatted} {asset.ticker}</div>
+                            <div className="amount-secondary">${suppliedValueUsd}</div>
                           </td>
-                          <td style={{
-                            padding: '1rem 1.25rem',
-                            borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                            textAlign: 'right',
-                            color: '#10b981',
-                            fontWeight: '600',
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
+                          <td>
+                            <div className="rate-cell positive-rate">
                               <FiTrendingUp size={14} />
                               {supplyRate}
                             </div>
                           </td>
                           <td 
                             onClick={e => e.stopPropagation()} 
-                            style={{
-                              padding: '1rem 1.25rem',
-                              borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                              textAlign: 'right'
-                            }}
+                            className="action-cell"
                           >
-                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                            <div className="action-buttons">
                               <button 
                                 onClick={() => openModal(asset, 'deposit')}
                                 disabled={asset.wallet_balance === 0n}
-                                style={{
-                                  background: 'linear-gradient(to right, #d9fbff, #7531fd)',
-                                  color: '#ffffff',
-                                  padding: '0.5rem 1rem',
-                                  borderRadius: '0.5rem',
-                                  fontWeight: '500',
-                                  border: 'none',
-                                  cursor: asset.wallet_balance === 0n ? 'not-allowed' : 'pointer',
-                                  opacity: asset.wallet_balance === 0n ? 0.5 : 1,
-                                  transition: 'all 0.2s'
-                                }}
+                                className="primary-button"
                               >
                                 Supply
                               </button>
                               <button 
                                 onClick={() => openModal(asset, 'withdraw')}
                                 disabled={availableToWithdraw === 0n}
-                                style={{
-                                  backgroundColor: '#363952',
-                                  color: '#ffffff',
-                                  padding: '0.5rem 1rem',
-                                  borderRadius: '0.5rem',
-                                  fontWeight: '500',
-                                  border: 'none',
-                                  cursor: availableToWithdraw === 0n ? 'not-allowed' : 'pointer',
-                                  opacity: availableToWithdraw === 0n ? 0.5 : 1,
-                                  transition: 'all 0.2s'
-                                }}
+                                className="secondary-button"
                               >
                                 Withdraw
                               </button>
@@ -502,90 +253,30 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
             )}
           </div>
           
-          <div style={{ marginBottom: '2rem' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '1rem'
-            }}>
-              <h3 style={{ 
-                fontSize: '1.25rem',
-                fontWeight: '600',
-                color: 'white',
-                margin: 0
-              }}>
+          <div className="section-content">
+            <div className="section-header">
+              <h3 className="section-title">
                 Your Borrows
               </h3>
-              <div style={{
-                fontSize: '0.875rem',
-                fontWeight: '600',
-                color: '#ef4444',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                padding: '0.375rem 0.75rem',
-                borderRadius: '0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem'
-              }}>
+              <div className={`section-total negative-total`}>
                 <FiDollarSign size={14} />
                 <span>Total: ${formatUsdValue(userPosition.total_borrowed_value, 9)}</span>
               </div>
             </div>
             
             {borrowedAssets.length === 0 ? (
-              <div style={{
-                padding: '1.5rem',
-                backgroundColor: 'rgba(34, 37, 58, 0.5)',
-                borderRadius: '0.75rem',
-                color: '#9fa1b2',
-                textAlign: 'center',
-                border: '1px solid rgba(54, 57, 82, 0.5)',
-              }}>
+              <div className="empty-section">
                 You haven't borrowed any assets yet.
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{
-                  width: '100%',
-                  borderCollapse: 'separate',
-                  borderSpacing: '0',
-                  color: 'white'
-                }}>
-                  <thead>
+              <div className="table-container">
+                <table className="assets-table">
+                  <thead className="table-header">
                     <tr>
-                      <th style={{
-                        textAlign: 'left',
-                        padding: '1rem 1.25rem',
-                        borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                        fontWeight: '600',
-                        color: '#9fa1b2',
-                        fontSize: '0.875rem'
-                      }}>Asset</th>
-                      <th style={{
-                        textAlign: 'right',
-                        padding: '1rem 1.25rem',
-                        borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                        fontWeight: '600',
-                        color: '#9fa1b2',
-                        fontSize: '0.875rem'
-                      }}>Borrowed Amount</th>
-                      <th style={{
-                        textAlign: 'right',
-                        padding: '1rem 1.25rem',
-                        borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                        fontWeight: '600',
-                        color: '#9fa1b2',
-                        fontSize: '0.875rem'
-                      }}>Borrow Rate</th>
-                      <th style={{
-                        textAlign: 'right',
-                        padding: '1rem 1.25rem',
-                        borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                        fontWeight: '600',
-                        color: '#9fa1b2',
-                        fontSize: '0.875rem'
-                      }}>Actions</th>
+                      <th>Asset</th>
+                      <th className="right-align">Borrowed Amount</th>
+                      <th className="right-align">Borrow Rate</th>
+                      <th className="right-align">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -599,109 +290,53 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                       
                       // Calculate borrowable amount with constraints
                       const borrowableAmount = usdToToken(asset.borrowable_value_usd, asset.decimals, asset.price);
-                      const availableToBorrow = borrowableAmount < asset.market_liquidity 
-                        ? borrowableAmount 
-                        : asset.market_liquidity;
+                      const availableToBorrow = borrowableAmount < asset.market_liquidity ? borrowableAmount : asset.market_liquidity;
+
                       
                       return (
                         <tr 
                           key={asset.id} 
                           onClick={() => onAssetSelect(asset.id)}
-                          style={{ 
-                            cursor: 'pointer',
-                            transition: 'background-color 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'rgba(117, 49, 253, 0.1)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }}
+                          className="asset-row"
                         >
-                          <td style={{
-                            padding: '1rem 1.25rem',
-                            borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <div style={{ 
-                                backgroundColor: '#363952', 
-                                width: '2.5rem', 
-                                height: '2.5rem', 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center',
-                                borderRadius: '50%',
-                                color: 'white'
-                              }}>
+                          <td>
+                            <div className="asset-info">
+                              <div className="asset-icon">
                                 {asset.ticker.charAt(0)}
                               </div>
                               <div>
-                                <div style={{ fontWeight: '600', fontSize: '1rem' }}>{asset.name}</div>
-                                <div style={{ color: '#9fa1b2', fontSize: '0.875rem', marginTop: '0.25rem' }}>{asset.ticker}</div>
+                                <div className="asset-name">{asset.name}</div>
+                                <div className="asset-ticker">{asset.ticker}</div>
                               </div>
                             </div>
                           </td>
-                          <td style={{
-                            padding: '1rem 1.25rem',
-                            borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                            textAlign: 'right'
-                          }}>
-                            <div style={{ fontWeight: '500' }}>{borrowedFormatted} {asset.ticker}</div>
-                            <div style={{ color: '#9fa1b2', fontSize: '0.75rem', marginTop: '0.25rem' }}>${borrowedValueUsd}</div>
+                          <td className="amount-cell">
+                            <div className="amount-primary">{borrowedFormatted} {asset.ticker}</div>
+                            <div className="amount-secondary">${borrowedValueUsd}</div>
                           </td>
-                          <td style={{
-                            padding: '1rem 1.25rem',
-                            borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                            textAlign: 'right',
-                            color: '#ef4444',
-                            fontWeight: '600',
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
+                          <td>
+                            <div className="rate-cell negative-rate">
                               <FiTrendingUp size={14} />
                               {borrowRate}
                             </div>
                           </td>
                           <td 
                             onClick={e => e.stopPropagation()} 
-                            style={{
-                              padding: '1rem 1.25rem',
-                              borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-                              textAlign: 'right'
-                            }}
+                            className="action-cell"
                           >
-                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                            <div className="action-buttons">
                               <button 
                                 onClick={() => openModal(asset, 'borrow')}
-                                disabled={userPosition.health_factor < 105n || availableToBorrow === 0n}
-                                title={userPosition.health_factor < 105n ? "Health factor too low" : availableToBorrow === 0n ? "No assets available to borrow" : ""}
-                                style={{
-                                  background: 'linear-gradient(to right, #d9fbff, #7531fd)',
-                                  color: '#ffffff',
-                                  padding: '0.5rem 1rem',
-                                  borderRadius: '0.5rem',
-                                  fontWeight: '500',
-                                  border: 'none',
-                                  cursor: userPosition.health_factor < 105n || availableToBorrow === 0n ? 'not-allowed' : 'pointer',
-                                  opacity: userPosition.health_factor < 105n || availableToBorrow === 0n ? 0.5 : 1,
-                                  transition: 'all 0.2s'
-                                }}
+                                disabled={!asset.is_borrowable || availableToBorrow === 0n}
+                                title={!asset.is_borrowable ? "Asset not borrowable" : availableToBorrow === 0n ? "No assets available to borrow" : ""}
+                                className="primary-button"
                               >
                                 Borrow
                               </button>
                               <button 
                                 onClick={() => openModal(asset, 'repay')}
                                 disabled={asset.wallet_balance === 0n}
-                                style={{
-                                  backgroundColor: '#363952',
-                                  color: '#ffffff',
-                                  padding: '0.5rem 1rem',
-                                  borderRadius: '0.5rem',
-                                  fontWeight: '500',
-                                  border: 'none',
-                                  cursor: asset.wallet_balance === 0n ? 'not-allowed' : 'pointer',
-                                  opacity: asset.wallet_balance === 0n ? 0.5 : 1,
-                                  transition: 'all 0.2s'
-                                }}
+                                className="secondary-button"
                               >
                                 Repay
                               </button>

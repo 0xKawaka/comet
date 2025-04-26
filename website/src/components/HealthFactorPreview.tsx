@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useLending, Asset } from '../contexts/LendingContext';
-import { formatTokenAmount, formatHealthFactor, getHealthFactorClass } from '../utils/formatters';
+import { formatTokenAmount, formatHealthFactor } from '../utils/formatters';
 import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR } from '../utils/precisionConstants';
 import { parseUnits } from 'ethers';
+import './HealthFactorPreview.css';
 
 interface HealthFactorPreviewProps {
   asset: Asset;
@@ -104,6 +105,17 @@ const HealthFactorPreview = ({ asset, actionType, amount }: HealthFactorPreviewP
   if (userPosition.total_borrowed_value === 0n && actionType !== 'borrow') {
     return null;
   }
+
+  // Define health factor class based on value
+  const getHealthFactorClass = (factor: number) => {
+    if (factor >= 2.0) { // Safe
+      return 'safe';
+    } else if (factor >= 1.2) { // Warning
+      return 'warning';
+    } else { // Danger
+      return 'danger';
+    }
+  };
 
   const currentHealthClass = getHealthFactorClass(userPosition.health_factor);
   const newHealthClass = getHealthFactorClass(newHealthFactor);
