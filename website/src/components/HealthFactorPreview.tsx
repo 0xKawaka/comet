@@ -108,9 +108,9 @@ const HealthFactorPreview = ({ asset, actionType, amount }: HealthFactorPreviewP
 
   // Define health factor class based on value
   const getHealthFactorClass = (factor: number) => {
-    if (factor >= 2.0) { // Safe
+    if (factor > 1.5) { // Safe
       return 'safe';
-    } else if (factor >= 1.2) { // Warning
+    } else if (factor > 1.1) { // Warning
       return 'warning';
     } else { // Danger
       return 'danger';

@@ -84,8 +84,8 @@ export const calculateLTV = (borrowedValue: bigint, collateralValue: bigint): nu
  * Get CSS class for health factor
  */
 export const getHealthFactorClass = (healthFactor: number): string => {
-  if (healthFactor === Infinity || healthFactor > 2) return 'health-factor-safe';
-  if (healthFactor > 1.05) return 'health-factor-warning';
+  if (healthFactor === Infinity || healthFactor > 1.5) return 'health-factor-safe';
+  if (healthFactor > 1.1) return 'health-factor-warning';
   return 'health-factor-danger';
 };
 
