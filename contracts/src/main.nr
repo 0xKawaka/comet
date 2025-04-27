@@ -38,6 +38,38 @@ pub contract Lending {
     #[initializer]
     fn constructor() {}
 
+    #[public]
+    fn liquidate_public(market_id: Field, collateral_asset: AztecAddress, debt_asset: AztecAddress, user: AztecAddress, debt_to_cover: u128) {
+        let _ = Lending::at(context.this_address())._liquidate(market_id, collateral_asset, debt_asset, user, debt_to_cover).call(&mut context);
+    }
+
+    #[public]
+    #[internal]
+    fn _liquidate(market_id: Field, collateral_asset: AztecAddress, debt_asset: AztecAddress, user: AztecAddress, debt_to_liquidate_amount: u128) {
+        Lending::at(context.this_address()).update_accumulators(market_id, collateral_asset).call(&mut context);
+        Lending::at(context.this_address()).update_accumulators(market_id, debt_asset).call(&mut context);
+
+        let scaled_borrowed_amount_loc = storage.scaled_borrowed_assets.at(market_id).at(debt_asset).at(user);
+        let scaled_borrowed_amount: u128 = scaled_borrowed_amount_loc.read();
+        let borrow_accumulator_loc = storage.borrow_accumulators.at(market_id).at(debt_asset);
+        let borrow_accumulator: Accumulator = borrow_accumulator_loc.read();
+        let borrowed_amount = (scaled_borrowed_amount * borrow_accumulator.value) / 1000000000 as u128;
+
+        assert(borrowed_amount >= debt_to_liquidate_amount, "Insufficient borrowed amount");
+
+        let total_collateral_value: u128 = Lending::at(context.this_address())._compute_total_collateral_value(market_id, user).call(&mut context);
+        let collateral_debt_value = Lending::at(context.this_address())._compute_collateral_debt_value(market_id, user).call(&mut context);
+
+        assert(collateral_debt_value > total_collateral_value, "collateral >= debt");
+
+        let debt_asset_loc = storage.market_assets.at(market_id).at(debt_asset);
+        let debt_asset: Asset = debt_asset_loc.read();
+        let debt_asset_price = PriceFeed::at(debt_asset.oracle).get_price(0).view(&mut context).price;
+        let debt_to_liquidate_price = (debt_to_liquidate_amount * debt_asset_price) / 1000000000 as u128;
+    }
+
+
+
     #[private]
     fn repay_private(
         from: AztecAddress,
@@ -113,13 +145,12 @@ pub contract Lending {
         assert(asset.is_borrowable, "Asset is not borrowable");
 
         let total_collateral_value: u128 = Lending::at(context.this_address())._compute_total_collateral_value(market_id, owner).call(&mut context);
-        
-        let total_min_collateral_value = Lending::at(context.this_address())._compute_total_min_collateral_value(market_id, owner).call(&mut context);
+        let collateral_debt_value = Lending::at(context.this_address())._compute_collateral_debt_value(market_id, owner).call(&mut context);
 
         let borrow_price = PriceFeed::at(asset.oracle).get_price(0).view(&mut context).price;
         let min_collateral_for_borrow = (amount * borrow_price * 10000 as u128) / (asset.loan_to_value * 1000000000 as u128);
 
-        assert(total_min_collateral_value + min_collateral_for_borrow <= total_collateral_value, "Insufficient collateral");
+        assert(collateral_debt_value + min_collateral_for_borrow <= total_collateral_value, "Insufficient collateral");
         
         let scaled_user_borrowed_amount_loc = storage.scaled_borrowed_assets.at(market_id).at(asset_address).at(owner);
         let scaled_user_borrowed_amount: u128 = scaled_user_borrowed_amount_loc.read();
@@ -171,14 +202,14 @@ pub contract Lending {
 
         let total_collateral_value: u128 = Lending::at(context.this_address())._compute_total_collateral_value(market_id, owner).call(&mut context);
 
-        let total_min_collateral_value = Lending::at(context.this_address())._compute_total_min_collateral_value(market_id, owner).call(&mut context);
+        let collateral_debt_value = Lending::at(context.this_address())._compute_collateral_debt_value(market_id, owner).call(&mut context);
 
         let collateral_price = PriceFeed::at(asset.oracle).get_price(0).view(&mut context).price;
-        let withdraw_amount_value = (amount * collateral_price) / 10000 as u128;
+        let withdraw_amount_value = (amount * collateral_price) / 1000000000 as u128;
 
         let total_collateral_value_after_withdraw = total_collateral_value - withdraw_amount_value;
 
-        assert(total_min_collateral_value <= total_collateral_value_after_withdraw, "Insufficient collateral");
+        assert(collateral_debt_value <= total_collateral_value_after_withdraw, "Insufficient collateral");
 
         let scaled_withdraw_amount = (amount * 1000000000 as u128) / deposit_accumulator.value;
         scaled_user_deposited_amount_loc.write(scaled_user_deposited_amount - scaled_withdraw_amount);
@@ -204,6 +235,7 @@ pub contract Lending {
         for i in 0..market_assets_list_len {
             let market_asset_loc = market_assets_list_loc.at(i);
             let market_asset: AztecAddress = market_asset_loc.read();
+            Lending::at(context.this_address()).update_accumulators(market_id, market_asset).call(&mut context);
             let collateral_asset_loc = storage.market_assets.at(market_id).at(market_asset);
             let collateral_asset: Asset = collateral_asset_loc.read();
             let collateral_price = PriceFeed::at(collateral_asset.oracle).get_price(0).view(&mut context).price;
@@ -219,7 +251,7 @@ pub contract Lending {
 
     #[public]
     #[internal]
-    fn _compute_total_min_collateral_value(market_id: Field, owner: AztecAddress) -> u128 {
+    fn _compute_collateral_debt_value(market_id: Field, owner: AztecAddress) -> u128 {
         let mut min_collateral_value: u128 = 0 as u128;
 
         let market_assets_list_len_loc = storage.market_assets_list_len.at(market_id);
@@ -229,6 +261,7 @@ pub contract Lending {
         for i in 0..market_assets_list_len {
             let market_asset_loc = market_assets_list_loc.at(i);
             let market_asset: AztecAddress = market_asset_loc.read();
+            Lending::at(context.this_address()).update_accumulators(market_id, market_asset).call(&mut context);
             let debt_asset_loc = storage.market_assets.at(market_id).at(market_asset);
             let debt_asset: Asset = debt_asset_loc.read();
             if(debt_asset.is_borrowable) {

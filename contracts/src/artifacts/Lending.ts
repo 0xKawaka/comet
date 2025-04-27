@@ -193,6 +193,9 @@ borrow_accumulators: {
     /** get_total_deposited_assets(market_id: field, asset_address: struct) */
     get_total_deposited_assets: ((market_id: FieldLike, asset_address: AztecAddressLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
+    /** liquidate_public(market_id: field, collateral_asset: struct, debt_asset: struct, user: struct, debt_to_cover: integer) */
+    liquidate_public: ((market_id: FieldLike, collateral_asset: AztecAddressLike, debt_asset: AztecAddressLike, user: AztecAddressLike, debt_to_cover: (bigint | number)) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+
     /** public_dispatch(selector: field) */
     public_dispatch: ((selector: FieldLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
