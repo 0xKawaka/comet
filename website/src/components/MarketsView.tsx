@@ -107,21 +107,22 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
                   <td className="right">
                     <div className="utilization-badge">
                       <div className="utilization-badge-content">
-                        <FiActivity size={14} />
                         {utilizationRate}
                       </div>
                     </div>
                   </td>
                   <td className="right">
                     <div className="supply-rate">
-                      <FiTrendingUp size={14} />
-                      {supplyRate}
+                      <div className="supply-rate-content">
+                        {supplyRate}
+                      </div>
                     </div>
                   </td>
                   <td className="right">
                     <div className="borrow-rate">
-                      <FiTrendingUp size={14} />
-                      {borrowRate}
+                      <div className="borrow-rate-content">
+                        {borrowRate}
+                      </div>
                     </div>
                   </td>
                   <td className="right">

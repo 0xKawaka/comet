@@ -147,7 +147,7 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
           <div className="stat-value">
             {formatTokenAmount(asset.total_supplied_with_interest, asset.decimals)} {asset.ticker}
           </div>
-          <div className="stat-value-positive">
+          <div className="stat-subvalue">
             ${formatUsdValue(totalSuppliedUsd, asset.decimals)}
           </div>
         </div>
@@ -160,7 +160,7 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
           <div className="stat-value">
             {formatTokenAmount(asset.total_borrowed_with_interest, asset.decimals)} {asset.ticker}
           </div>
-          <div className="stat-value-negative">
+          <div className="stat-subvalue">
             ${formatUsdValue(totalBorrowedUsd, asset.decimals)}
           </div>
         </div>
@@ -193,7 +193,7 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
             <FiTrendingUp size={14} />
             <span>Supply Rate</span>
           </div>
-          <div className="stat-value-positive">
+          <div className="stat-value-highlight">
             {formatPercentage(asset.supply_rate * 100)}
           </div>
         </div>
@@ -203,7 +203,7 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
             <FiTrendingUp size={14} />
             <span>Borrow Rate</span>
           </div>
-          <div className="stat-value-negative">
+          <div className="stat-value-highlight">
             {formatPercentage(asset.borrow_rate * 100)}
           </div>
         </div>

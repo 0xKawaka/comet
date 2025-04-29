@@ -219,7 +219,6 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                           </td>
                           <td>
                             <div className="rate-cell positive-rate">
-                              <FiTrendingUp size={14} />
                               {supplyRate}
                             </div>
                           </td>
@@ -322,7 +321,6 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                           </td>
                           <td>
                             <div className="rate-cell negative-rate">
-                              <FiTrendingUp size={14} />
                               {borrowRate}
                             </div>
                           </td>

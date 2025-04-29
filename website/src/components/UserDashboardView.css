@@ -89,13 +89,13 @@
 .metric-value-positive {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #10b981;
+  color: white;
 }
 
 .metric-value-negative {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #ef4444;
+  color: white;
 }
 
 /* Empty State */
@@ -139,13 +139,13 @@
 }
 
 .positive-total {
-  color: #10b981;
-  background-color: rgba(16, 185, 129, 0.1);
+  color: white;
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .negative-total {
-  color: #ef4444;
-  background-color: rgba(239, 68, 68, 0.1);
+  color: white;
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .section-content {
@@ -252,11 +252,11 @@
 }
 
 .positive-rate {
-  color: #10b981;
+  color: #8a8dff;
 }
 
 .negative-rate {
-  color: #ef4444;
+  color: #8a8dff;
 }
 
 .action-cell {
