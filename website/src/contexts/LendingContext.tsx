@@ -1,4 +1,4 @@
-import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
+import { ReactNode, createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { AztecAddress, Fr } from '@aztec/aztec.js';
 import { parseUnits, formatUnits } from 'ethers';
 import { useWallet } from '../hooks';
@@ -8,8 +8,23 @@ import devContracts from '../blockchain/dev-contracts.json';
 import allAssets from '../blockchain/dev-all-assets.json';
 import { PriceFeedContract } from '@aztec/noir-contracts.js/PriceFeed';
 import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR, PERCENTAGE_PRECISION, PRICE_PRECISION_FACTOR, INTEREST_PRECISION_FACTOR } from '../utils/precisionConstants';
+import { AuthWitness } from '@aztec/aztec.js';
 
 const marketId = 1; // This should eventually be derived from the asset or configuration
+
+// Define type for asset data from JSON
+interface AssetMetadata {
+  name: string;
+  ticker: string;
+  decimals: number;
+  oracle: string;
+  loan_to_value: number;
+  is_borrowable: boolean;
+  deposit_cap: string;
+  optimal_utilization_rate: number;
+  under_optimal_slope: number;
+  over_optimal_slope: number;
+}
 
 // Define the shape of our asset data
 export interface Asset {
@@ -25,19 +40,19 @@ export interface Asset {
   price: bigint;
   total_supplied: bigint;
   total_borrowed: bigint;
-  total_supplied_with_interest: bigint; // New field for total supplied amount with accrued interest
-  total_borrowed_with_interest: bigint; // New field for total borrowed amount with accrued interest
+  total_supplied_with_interest: bigint;
+  total_borrowed_with_interest: bigint;
   utilization_rate: number;
   borrow_rate: number;
   supply_rate: number;
   user_supplied: bigint;
   user_borrowed: bigint;
-  user_supplied_with_interest: bigint; // New field for supplied amount with accrued interest
-  user_borrowed_with_interest: bigint; // New field for borrowed amount with accrued interest
+  user_supplied_with_interest: bigint;
+  user_borrowed_with_interest: bigint;
   wallet_balance: bigint;
   wallet_balance_private: bigint;
-  borrowable_value_usd: bigint; // Added field for globally calculated borrowable value in USD
-  market_liquidity: bigint; // Available liquidity in the market (total_supplied - total_borrowed)
+  borrowable_value_usd: bigint;
+  market_liquidity: bigint;
   deposit_accumulator: {
     value: bigint;
     last_updated_ts: number;
@@ -64,6 +79,30 @@ interface LendingContextType {
   borrowAsset: (assetId: string, amount: string, isPrivate: boolean) => Promise<void>;
   repayAsset: (assetId: string, amount: string, isPrivate: boolean) => Promise<void>;
   refreshData: () => Promise<void>;
+}
+
+// Interface for fetched asset data structure
+interface AssetDataResult {
+  walletBalance: bigint;
+  walletBalancePrivate: bigint;
+  userPosition: {
+    collateral?: bigint;
+    debt?: bigint;
+  };
+  totalSupplied: bigint;
+  totalBorrowed: bigint;
+  priceResponse: {
+    price: bigint;
+  };
+  accumulators: Array<{
+    value: bigint;
+    last_updated_ts: number;
+  }>;
+  metadata: {
+    id: string;
+    assetAddress: AztecAddress;
+    data: AssetMetadata;
+  };
 }
 
 const defaultContext: LendingContextType = {
@@ -116,6 +155,29 @@ const calculateInterestAccrued = (
   return (amount * factorBigInt) / INTEREST_PRECISION_FACTOR;
 };
 
+// Helper function to calculate interest rates based on utilization
+const calculateInterestRates = (
+  utilizationRate: number,
+  optimalRate: number,
+  underSlope: number,
+  overSlope: number
+): { borrowRate: number, supplyRate: number } => {
+  let borrowRate = 0;
+
+  if (utilizationRate < optimalRate) {
+    borrowRate = (utilizationRate * underSlope) / optimalRate;
+  } else {
+    borrowRate = underSlope + 
+      ((utilizationRate - optimalRate) * overSlope) / 
+      (1 - optimalRate);
+  }
+  
+  // Calculate supply rate
+  const supplyRate = borrowRate * utilizationRate;
+  
+  return { borrowRate, supplyRate };
+};
+
 interface LendingProviderProps {
   children: ReactNode;
 }
@@ -130,6 +192,13 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     total_supplied_value: 0n,
     total_borrowed_value: 0n
   });
+  // Store current assets in a ref to access from the interval without dependencies
+  const assetsRef = useRef<Asset[]>([]);
+  
+  // Update assets ref whenever assets change
+  useEffect(() => {
+    assetsRef.current = assets;
+  }, [assets]);
 
   useEffect(() => {
     if (wallet && address) {
@@ -145,6 +214,257 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     }
   }, [address]);
 
+  // Add new useEffect for the interval to update interest accruals
+  useEffect(() => {
+    // Only start the interval if we have assets loaded
+    if (assets.length === 0) return;
+
+    // Set up interval to update interest calculations every 5 seconds
+    const intervalId = setInterval(() => {
+      updateInterestAccruals();
+    }, 5000); // 5000 milliseconds = 5 seconds
+
+    // Clean up the interval when the component unmounts
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [assets.length]); // Only re-create when assets length changes (i.e., when assets are first loaded)
+
+  // Function to update interest accruals without querying the blockchain
+  const updateInterestAccruals = useCallback(() => {
+    // If no assets, nothing to update
+    if (assetsRef.current.length === 0) return;
+
+    // Create a copy of current assets to work with
+    const updatedAssets = assetsRef.current.map(asset => {
+      // Clone the asset to avoid mutating state directly
+      const updatedAsset = { ...asset };
+      
+      // Calculate updated interest for user deposits
+      updatedAsset.user_supplied_with_interest = calculateInterestAccrued(
+        updatedAsset.user_supplied,
+        updatedAsset.supply_rate,
+        updatedAsset.deposit_accumulator.last_updated_ts
+      );
+      
+      // Calculate updated interest for user borrows
+      updatedAsset.user_borrowed_with_interest = calculateInterestAccrued(
+        updatedAsset.user_borrowed,
+        updatedAsset.borrow_rate,
+        updatedAsset.borrow_accumulator.last_updated_ts
+      );
+      
+      // Calculate updated interest for total supplies and borrows
+      updatedAsset.total_supplied_with_interest = calculateInterestAccrued(
+        updatedAsset.total_supplied,
+        updatedAsset.supply_rate,
+        updatedAsset.deposit_accumulator.last_updated_ts
+      );
+      
+      updatedAsset.total_borrowed_with_interest = calculateInterestAccrued(
+        updatedAsset.total_borrowed,
+        updatedAsset.borrow_rate,
+        updatedAsset.borrow_accumulator.last_updated_ts
+      );
+      
+      // Recalculate market liquidity
+      updatedAsset.market_liquidity = updatedAsset.total_supplied_with_interest > updatedAsset.total_borrowed_with_interest
+        ? updatedAsset.total_supplied_with_interest - updatedAsset.total_borrowed_with_interest
+        : 0n;
+      
+      return updatedAsset;
+    });
+    
+    // Update state with the new asset values
+    setAssets(updatedAssets);
+    
+    // Update user position metrics
+    updateUserPosition(updatedAssets);
+  }, []);
+
+  // Utility function to process asset data into Asset objects
+  const processAssetData = (result: AssetDataResult): Asset => {
+    const {
+      walletBalance,
+      walletBalancePrivate,
+      userPosition,
+      totalSupplied,
+      totalBorrowed,
+      priceResponse,
+      accumulators,
+      metadata
+    } = result;
+    
+    const { id, assetAddress, data } = metadata;
+    
+    // Calculate utilization rate
+    const utilizationRate = totalSupplied > 0 
+      ? Number((totalBorrowed * 10000n) / totalSupplied) / 10000 
+      : 0;
+      
+    // Calculate rates using helper function
+    const { borrowRate, supplyRate } = calculateInterestRates(
+      utilizationRate,
+      data.optimal_utilization_rate,
+      data.under_optimal_slope,
+      data.over_optimal_slope
+    );
+    
+    // Calculate supplied and borrowed amounts with accrued interest (user specific)
+    const userSuppliedWithInterest = calculateInterestAccrued(
+      userPosition.collateral || 0n,
+      supplyRate,
+      accumulators[0]?.last_updated_ts || 0
+    );
+    
+    const userBorrowedWithInterest = calculateInterestAccrued(
+      userPosition.debt || 0n,
+      borrowRate,
+      accumulators[1]?.last_updated_ts || 0
+    );
+
+    // Calculate total supplied and borrowed with accrued interest (global pool)
+    const totalSuppliedWithInterest = calculateInterestAccrued(
+      totalSupplied,
+      supplyRate,
+      accumulators[0]?.last_updated_ts || 0
+    );
+    
+    const totalBorrowedWithInterest = calculateInterestAccrued(
+      totalBorrowed,
+      borrowRate,
+      accumulators[1]?.last_updated_ts || 0
+    );
+    
+    // Calculate market liquidity (available liquidity)
+    const marketLiquidity = totalSuppliedWithInterest > totalBorrowedWithInterest 
+      ? totalSuppliedWithInterest - totalBorrowedWithInterest 
+      : 0n;
+    
+    return {
+      id,
+      address: assetAddress,
+      name: data.name,
+      ticker: data.ticker,
+      decimals: data.decimals,
+      oracle: data.oracle,
+      loan_to_value: data.loan_to_value,
+      is_borrowable: data.is_borrowable,
+      deposit_cap: data.deposit_cap,
+      price: priceResponse.price,
+      total_supplied: totalSupplied,
+      total_borrowed: totalBorrowed,
+      total_supplied_with_interest: totalSuppliedWithInterest,
+      total_borrowed_with_interest: totalBorrowedWithInterest,
+      utilization_rate: utilizationRate,
+      borrow_rate: borrowRate,
+      supply_rate: supplyRate,
+      user_supplied: userPosition.collateral || 0n,
+      user_borrowed: userPosition.debt || 0n,
+      user_supplied_with_interest: userSuppliedWithInterest,
+      user_borrowed_with_interest: userBorrowedWithInterest,
+      wallet_balance: walletBalance,
+      wallet_balance_private: walletBalancePrivate,
+      borrowable_value_usd: 0n, // Will be updated in updateUserPosition
+      market_liquidity: marketLiquidity,
+      deposit_accumulator: {
+        value: accumulators[0]?.value || 0n,
+        last_updated_ts: Number(accumulators[0]?.last_updated_ts) || 0
+      },
+      borrow_accumulator: {
+        value: accumulators[1]?.value || 0n,
+        last_updated_ts: Number(accumulators[1]?.last_updated_ts) || 0
+      },
+      withdrawable_amount: 0n // Will be calculated in updateUserPosition
+    };
+  };
+
+  // Helper function to fetch all asset data
+  const fetchAssetData = async (contract: LendingContract): Promise<Asset[]> => {
+    if (!wallet || !address) return [];
+    
+    // Parse asset metadata from JSON
+    const assetsData = allAssets as Record<string, AssetMetadata>;
+    
+    // Initialize all contracts in parallel
+    const assetEntries = Object.entries(assetsData);
+    const assetAddresses = assetEntries.map(([id]) => AztecAddress.fromString(id));
+    const oracleAddresses = assetEntries.map(([_, data]) => AztecAddress.fromString(data.oracle));
+    
+    // Create token and price feed contracts in parallel
+    const tokenContractPromises = assetAddresses.map(addr => TokenContract.at(addr, wallet));
+    const priceFeedPromises = oracleAddresses.map(addr => PriceFeedContract.at(addr, wallet));
+    
+    // Wait for all contracts to be initialized
+    const [tokenContracts, priceFeedContracts] = await Promise.all([
+      Promise.all(tokenContractPromises),
+      Promise.all(priceFeedPromises)
+    ]);
+    
+    // For each asset, prepare all data fetch promises
+    const assetDataPromises = assetEntries.map(([id, data], index) => {
+      const assetAddress = assetAddresses[index];
+      const tokenContract = tokenContracts[index];
+      const priceFeedContract = priceFeedContracts[index];
+      
+      // Bundle all the async calls for this asset
+      return Promise.all([
+        // Get wallet balances
+        tokenContract.methods.balance_of_public(address).simulate(),
+        tokenContract.methods.balance_of_private(address).simulate(),
+        
+        // Get user position
+        contract.methods.get_position(address, marketId, assetAddress).simulate(),
+        
+        // Get total supplied and borrowed
+        contract.methods.get_total_deposited_assets(marketId, assetAddress).simulate(),
+        contract.methods.get_total_borrowed_assets(marketId, assetAddress).simulate(),
+        
+        // Get price
+        priceFeedContract.methods.get_price(0).simulate(),
+        
+        // Get accumulators
+        contract.methods.get_accumulators(marketId, assetAddress).simulate(),
+        
+        // Return asset metadata
+        Promise.resolve({ 
+          id, 
+          assetAddress, 
+          data 
+        })
+      ]);
+    });
+    
+    // Wait for all asset data to be fetched
+    const assetsResults = await Promise.all(assetDataPromises);
+    
+    // Process results into Asset objects
+    return assetsResults.map(result => {
+      const [
+        walletBalance,
+        walletBalancePrivate,
+        userPosition,
+        totalSupplied,
+        totalBorrowed,
+        priceResponse,
+        accumulators,
+        metadata
+      ] = result;
+      
+      // Process asset data into an Asset object
+      return processAssetData({
+        walletBalance,
+        walletBalancePrivate,
+        userPosition,
+        totalSupplied,
+        totalBorrowed,
+        priceResponse,
+        accumulators,
+        metadata
+      });
+    });
+  };
+
   const initLendingContract = async () => {
     if (!wallet || !address) return;
     
@@ -157,177 +477,10 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       );
       setLendingContract(contract);
       
-      // Convert the all assets JSON to a typed object
-      const assetsData = allAssets as Record<string, {
-        name: string;
-        ticker: string;
-        decimals: number;
-        oracle: string;
-        loan_to_value: number;
-        is_borrowable: boolean;
-        deposit_cap: string;
-        optimal_utilization_rate: number;
-        under_optimal_slope: number;
-        over_optimal_slope: number;
-      }>;
+      // Fetch all asset data
+      const assetsArray = await fetchAssetData(contract);
       
-      // Initialize all contracts in parallel first
-      const assetEntries = Object.entries(assetsData);
-      const assetAddresses = assetEntries.map(([id]) => AztecAddress.fromString(id));
-      const oracleAddresses = assetEntries.map(([_, data]) => AztecAddress.fromString(data.oracle));
-      
-      // Create token and price feed contracts in parallel
-      const tokenContractPromises = assetAddresses.map(addr => TokenContract.at(addr, wallet));
-      const priceFeedPromises = oracleAddresses.map(addr => PriceFeedContract.at(addr, wallet));
-      
-      // Wait for all contracts to be initialized
-      const [tokenContracts, priceFeedContracts] = await Promise.all([
-        Promise.all(tokenContractPromises),
-        Promise.all(priceFeedPromises)
-      ]);
-      
-      // For each asset, prepare all data fetch promises
-      const assetDataPromises = assetEntries.map(([id, data], index) => {
-        const assetAddress = assetAddresses[index];
-        const tokenContract = tokenContracts[index];
-        const priceFeedContract = priceFeedContracts[index];
-        
-        // Bundle all the async calls for this asset
-        return Promise.all([
-          // Get wallet balances
-          tokenContract.methods.balance_of_public(address).simulate(),
-          tokenContract.methods.balance_of_private(address).simulate(),
-          
-          // Get user position
-          contract.methods.get_position(address, marketId, assetAddress).simulate(),
-          
-          // Get total supplied and borrowed
-          contract.methods.get_total_deposited_assets(marketId, assetAddress).simulate(),
-          contract.methods.get_total_borrowed_assets(marketId, assetAddress).simulate(),
-          
-          // Get price
-          priceFeedContract.methods.get_price(0).simulate(),
-          
-          // Get accumulators
-          contract.methods.get_accumulators(marketId, assetAddress).simulate(),
-          
-          // Return asset metadata
-          Promise.resolve({ 
-            id, 
-            assetAddress, 
-            data 
-          })
-        ]);
-      });
-      
-      // Wait for all asset data to be fetched
-      const assetsResults = await Promise.all(assetDataPromises);
-      
-      // Process the results into Asset objects
-      const assetsArray: Asset[] = assetsResults.map(result => {
-        const [
-          walletBalance,
-          walletBalancePrivate,
-          userPosition,
-          totalSupplied,
-          totalBorrowed,
-          priceResponse,
-          accumulators,
-          metadata
-        ] = result;
-        
-        const { id, assetAddress, data } = metadata;
-        
-        // Calculate utilization rate
-        const utilizationRate = totalSupplied > 0 
-          ? Number((totalBorrowed * 10000n) / totalSupplied) / 10000 
-          : 0;
-        // Calculate borrow rate
-        let borrowRate = 0;
-        const optimalRate = data.optimal_utilization_rate;
-        const underSlope = data.under_optimal_slope;
-        const overSlope = data.over_optimal_slope;
-
-        if (utilizationRate < optimalRate) {
-          borrowRate = (utilizationRate * underSlope) / optimalRate;
-        } else {
-          borrowRate = underSlope + 
-            ((utilizationRate - optimalRate) * overSlope) / 
-            (1 - optimalRate);
-        }
-        
-        // Calculate supply rate
-        const supplyRate = borrowRate * utilizationRate;
-        
-        // Calculate supplied and borrowed amounts with accrued interest (user specific)
-        const userSuppliedWithInterest = calculateInterestAccrued(
-          userPosition.collateral || 0n,
-          supplyRate,
-          accumulators[0]?.last_updated_ts || 0
-        );
-        
-        const userBorrowedWithInterest = calculateInterestAccrued(
-          userPosition.debt || 0n,
-          borrowRate,
-          accumulators[1]?.last_updated_ts || 0
-        );
-
-        // Calculate total supplied and borrowed with accrued interest (global pool)
-        const totalSuppliedWithInterest = calculateInterestAccrued(
-          totalSupplied,
-          supplyRate,
-          accumulators[0]?.last_updated_ts || 0
-        );
-        
-        const totalBorrowedWithInterest = calculateInterestAccrued(
-          totalBorrowed,
-          borrowRate,
-          accumulators[1]?.last_updated_ts || 0
-        );
-        
-        // Calculate market liquidity (available liquidity)
-        const marketLiquidity = totalSuppliedWithInterest > totalBorrowedWithInterest 
-          ? totalSuppliedWithInterest - totalBorrowedWithInterest 
-          : 0n;
-        
-        return {
-          id,
-          address: assetAddress,
-          name: data.name,
-          ticker: data.ticker,
-          decimals: data.decimals,
-          oracle: data.oracle,
-          loan_to_value: data.loan_to_value,
-          is_borrowable: data.is_borrowable,
-          deposit_cap: data.deposit_cap,
-          price: priceResponse.price,
-          total_supplied: totalSupplied,
-          total_borrowed: totalBorrowed,
-          total_supplied_with_interest: totalSuppliedWithInterest,
-          total_borrowed_with_interest: totalBorrowedWithInterest,
-          utilization_rate: utilizationRate,
-          borrow_rate: borrowRate,
-          supply_rate: supplyRate,
-          user_supplied: userPosition.collateral || 0n,
-          user_borrowed: userPosition.debt || 0n,
-          user_supplied_with_interest: userSuppliedWithInterest,
-          user_borrowed_with_interest: userBorrowedWithInterest,
-          wallet_balance: walletBalance,
-          wallet_balance_private: walletBalancePrivate,
-          borrowable_value_usd: 0n, // Add default value, will be updated in updateUserPosition
-          market_liquidity: marketLiquidity,
-          deposit_accumulator: {
-            value: accumulators[0]?.value || 0n,
-            last_updated_ts: Number(accumulators[0]?.last_updated_ts) || 0
-          },
-          borrow_accumulator: {
-            value: accumulators[1]?.value || 0n,
-            last_updated_ts: Number(accumulators[1]?.last_updated_ts) || 0
-          },
-          withdrawable_amount: 0n
-        };
-      });
-
+      // Update state with processed assets
       setAssets(assetsArray);
       
       // Calculate user position metrics
@@ -373,8 +526,9 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       ? totalSuppliedValue - collateralValueNeeded
       : 0n;
 
-    // Update borrowable value for each asset based on both available liquidity and user's borrowing capacity
+    // Update borrowable value and withdrawable amount for each asset
     for (const asset of assetsArray) {
+      // Update borrowable value
       if (asset.is_borrowable) {
         // Convert market liquidity to USD using the asset's price and decimals
         const marketLiquidityUsd = tokenToUsd(asset.market_liquidity, asset.decimals, asset.price);
@@ -389,17 +543,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       } else {
         asset.borrowable_value_usd = 0n;
       }
-    }
-    
-    setUserPosition({
-      health_factor: healthFactor,
-      total_supplied_value: totalSuppliedValue,
-      total_borrowed_value: totalBorrowedValue
-    });
 
-    // Calculate withdrawable amount for each asset
-    for (const asset of assetsArray) {
-      // Calculate withdrawable amount for this specific asset
+      // Update withdrawable amount
       if (asset.user_supplied_with_interest === 0n) {
         // If user hasn't supplied this asset, they can't withdraw any
         asset.withdrawable_amount = 0n;
@@ -410,63 +555,112 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           asset.decimals, 
           asset.price
         );
-        if(assetSuppliedValueUsd > excessCollateralValueUsd){
-          asset.withdrawable_amount =  usdToToken(excessCollateralValueUsd, asset.decimals, asset.price);
-        } else{
+        
+        if (assetSuppliedValueUsd > excessCollateralValueUsd) {
+          asset.withdrawable_amount = usdToToken(excessCollateralValueUsd, asset.decimals, asset.price);
+        } else {
           asset.withdrawable_amount = asset.user_supplied_with_interest;
         }
       }
     }
+    
+    setUserPosition({
+      health_factor: healthFactor,
+      total_supplied_value: totalSuppliedValue,
+      total_borrowed_value: totalBorrowedValue
+    });
+  };
+
+  // Helper function to validate common transaction requirements
+  const validateTransaction = (assetId: string): Asset => {
+    if (!lendingContract || !wallet || !address) {
+      throw new Error("Wallet or lending contract not initialized");
+    }
+    
+    const asset = assets.find(a => a.id === assetId);
+    if (!asset) throw new Error("Asset not found");
+    
+    return asset;
+  };
+
+  // Helper function to set up token contract authorization
+  const setupTokenAuthorization = async (
+    tokenContract: TokenContract, 
+    lendingContract: LendingContract,
+    amount: bigint, 
+    nonce: bigint, 
+    isPrivate: boolean
+  ): Promise<AuthWitness | undefined> => {
+    if (!wallet || !address) {
+      throw new Error("Wallet not initialized");
+    }
+    
+    if (isPrivate) {
+      return await wallet.createAuthWit({
+        caller: lendingContract.address,
+        action: tokenContract.methods.transfer_to_public(
+          address,
+          lendingContract.address,
+          amount,
+          nonce,
+        ),
+      });
+    } else {
+      const validateAction = await wallet.setPublicAuthWit(
+        {
+          caller: lendingContract.address,
+          action: tokenContract.methods.transfer_in_public(
+            address,
+            lendingContract.address,
+            amount,
+            nonce,
+          ),
+        },
+        true,
+      );
+      await validateAction.send().wait();
+      return undefined;
+    }
   };
 
   const depositAsset = async (assetId: string, amount: string, isPrivate: boolean) => {
-    if (!lendingContract || !wallet || !address) return;
-    
     try {
-      const asset = assets.find(a => a.id === assetId);
-      if (!asset) throw new Error("Asset not found");
+      const asset = validateTransaction(assetId);
+      
+      if (!lendingContract || !wallet || !address) {
+        throw new Error("Wallet or lending contract not initialized");
+      }
       
       // Use ethers.js parseUnits to safely handle decimal inputs
       const amountBigInt = parseUnits(amount, asset.decimals);
-      const nonce = Fr.random();
-      
+      const nonce = BigInt(Fr.random().toString());
       
       const tokenContract = await TokenContract.at(asset.address, wallet);
       
       if (isPrivate) {
-        const transferToPublicAuthwit = await wallet.createAuthWit({
-          caller: lendingContract.address,
-          action: tokenContract.methods.transfer_to_public(
-            address,
-            lendingContract.address,
-            amountBigInt,
-            nonce,
-          ),
-        });
+        const transferToPublicAuthwit = await setupTokenAuthorization(
+          tokenContract, 
+          lendingContract, 
+          amountBigInt, 
+          nonce, 
+          true
+        );
+        
+        if (!transferToPublicAuthwit) {
+          throw new Error("Failed to create auth witness");
+        }
         
         await lendingContract.methods.deposit_private(
           address,
           amountBigInt,
           nonce,
-          wallet.getSecretKey(),
+          0n,
           address,
           marketId,
           asset.address
         ).send({ authWitnesses: [transferToPublicAuthwit] }).wait();
       } else {
-        const validateAction = await wallet.setPublicAuthWit(
-          {
-            caller: lendingContract.address,
-            action: tokenContract.methods.transfer_in_public(
-              address,
-              lendingContract.address,
-              amountBigInt,
-              nonce,
-            ),
-          },
-          true,
-        );
-        await validateAction.send().wait();
+        await setupTokenAuthorization(tokenContract, lendingContract, amountBigInt, nonce, false);
 
         await lendingContract.methods.deposit_public(
           amountBigInt,
@@ -485,11 +679,12 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   };
 
   const withdrawAsset = async (assetId: string, amount: string, isPrivate: boolean) => {
-    if (!lendingContract || !wallet || !address) return;
-    
     try {
-      const asset = assets.find(a => a.id === assetId);
-      if (!asset) throw new Error("Asset not found");
+      const asset = validateTransaction(assetId);
+      
+      if (!lendingContract || !wallet || !address) {
+        throw new Error("Wallet or lending contract not initialized");
+      }
       
       // Use ethers.js parseUnits to safely handle decimal inputs
       const amountBigInt = parseUnits(amount, asset.decimals);
@@ -519,11 +714,12 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   };
 
   const borrowAsset = async (assetId: string, amount: string, isPrivate: boolean) => {
-    if (!lendingContract || !wallet || !address) return;
-    
     try {
-      const asset = assets.find(a => a.id === assetId);
-      if (!asset) throw new Error("Asset not found");
+      const asset = validateTransaction(assetId);
+      
+      if (!lendingContract || !wallet || !address) {
+        throw new Error("Wallet or lending contract not initialized");
+      }
       
       // Use ethers.js parseUnits to safely handle decimal inputs
       const amountBigInt = parseUnits(amount, asset.decimals);
@@ -553,52 +749,43 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   };
 
   const repayAsset = async (assetId: string, amount: string, isPrivate: boolean) => {
-    if (!lendingContract || !wallet || !address) return;
-    
     try {
-      const asset = assets.find(a => a.id === assetId);
-      if (!asset) throw new Error("Asset not found");
+      const asset = validateTransaction(assetId);
+      
+      if (!lendingContract || !wallet || !address) {
+        throw new Error("Wallet or lending contract not initialized");
+      }
       
       // Use ethers.js parseUnits to safely handle decimal inputs
       const amountBigInt = parseUnits(amount, asset.decimals);
-      const nonce = Fr.random();
+      const nonce = BigInt(Fr.random().toString());
       
       const tokenContract = await TokenContract.at(asset.address, wallet);
       
       if (isPrivate) {
-        const transferToPublicAuthwit = await wallet.createAuthWit({
-          caller: lendingContract.address,
-          action: tokenContract.methods.transfer_to_public(
-            address,
-            lendingContract.address,
-            amountBigInt,
-            nonce,
-          ),
-        });
+        const transferToPublicAuthwit = await setupTokenAuthorization(
+          tokenContract, 
+          lendingContract, 
+          amountBigInt, 
+          nonce, 
+          true
+        );
+        
+        if (!transferToPublicAuthwit) {
+          throw new Error("Failed to create auth witness");
+        }
         
         await lendingContract.methods.repay_private(
           address,
           amountBigInt,
           nonce,
-          wallet.getSecretKey(),
+          0n,
           address,
           marketId,
           asset.address
         ).send({ authWitnesses: [transferToPublicAuthwit] }).wait();
       } else {
-        const validateAction = await wallet.setPublicAuthWit(
-          {
-            caller: lendingContract.address,
-            action: tokenContract.methods.transfer_in_public(
-              address,
-              lendingContract.address,
-              amountBigInt,
-              nonce,
-            ),
-          },
-          true,
-        );
-        await validateAction.send().wait();
+        await setupTokenAuthorization(tokenContract, lendingContract, amountBigInt, nonce, false);
 
         await lendingContract.methods.repay_public(
           amountBigInt,
@@ -621,176 +808,10 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     
     setIsLoading(true);
     try {
-      // Convert the all assets JSON to a typed object
-      const assetsData = allAssets as Record<string, {
-        name: string;
-        ticker: string;
-        decimals: number;
-        oracle: string;
-        loan_to_value: number;
-        is_borrowable: boolean;
-        deposit_cap: string;
-        optimal_utilization_rate: number;
-        under_optimal_slope: number;
-        over_optimal_slope: number;
-      }>;
+      // Fetch all asset data
+      const assetsArray = await fetchAssetData(lendingContract);
       
-      // Initialize all contracts in parallel first
-      const assetEntries = Object.entries(assetsData);
-      const assetAddresses = assetEntries.map(([id]) => AztecAddress.fromString(id));
-      const oracleAddresses = assetEntries.map(([_, data]) => AztecAddress.fromString(data.oracle));
-      
-      // Create token and price feed contracts in parallel
-      const tokenContractPromises = assetAddresses.map(addr => TokenContract.at(addr, wallet));
-      const priceFeedPromises = oracleAddresses.map(addr => PriceFeedContract.at(addr, wallet));
-      
-      // Wait for all contracts to be initialized
-      const [tokenContracts, priceFeedContracts] = await Promise.all([
-        Promise.all(tokenContractPromises),
-        Promise.all(priceFeedPromises)
-      ]);
-      
-      // For each asset, prepare all data fetch promises
-      const assetDataPromises = assetEntries.map(([id, data], index) => {
-        const assetAddress = assetAddresses[index];
-        const tokenContract = tokenContracts[index];
-        const priceFeedContract = priceFeedContracts[index];
-        
-        // Bundle all the async calls for this asset
-        return Promise.all([
-          // Get wallet balances
-          tokenContract.methods.balance_of_public(address).simulate(),
-          tokenContract.methods.balance_of_private(address).simulate(),
-          
-          // Get user position
-          lendingContract.methods.get_position(address, marketId, assetAddress).simulate(),
-          
-          // Get total supplied and borrowed
-          lendingContract.methods.get_total_deposited_assets(marketId, assetAddress).simulate(),
-          lendingContract.methods.get_total_borrowed_assets(marketId, assetAddress).simulate(),
-          
-          // Get price
-          priceFeedContract.methods.get_price(0).simulate(),
-          
-          // Get accumulators
-          lendingContract.methods.get_accumulators(marketId, assetAddress).simulate(),
-          
-          // Return asset metadata
-          Promise.resolve({ 
-            id, 
-            assetAddress, 
-            data 
-          })
-        ]);
-      });
-      
-      // Wait for all asset data to be fetched
-      const assetsResults = await Promise.all(assetDataPromises);
-      // Process the results into Asset objects
-      const assetsArray: Asset[] = assetsResults.map(result => {
-        const [
-          walletBalance,
-          walletBalancePrivate,
-          userPosition,
-          totalSupplied,
-          totalBorrowed,
-          priceResponse,
-          accumulators,
-          metadata
-        ] = result;
-        
-        const { id, assetAddress, data } = metadata;
-        
-        // Calculate utilization rate
-        const utilizationRate = totalSupplied > 0 
-          ? Number((totalBorrowed * 10000n) / totalSupplied) / 10000 
-          : 0;
-
-        // Calculate borrow rate
-        let borrowRate = 0;
-        const optimalRate = data.optimal_utilization_rate;
-        const underSlope = data.under_optimal_slope;
-        const overSlope = data.over_optimal_slope;
-        
-        if (utilizationRate < optimalRate) {
-          borrowRate = (utilizationRate * underSlope) / optimalRate;
-        } else {
-          borrowRate = underSlope + 
-            ((utilizationRate - optimalRate) * overSlope) / 
-            (1 - optimalRate);
-        }
-        // Calculate supply rate
-        const supplyRate = borrowRate * utilizationRate;
-        
-        // Calculate supplied and borrowed amounts with accrued interest (user specific)
-        const userSuppliedWithInterest = calculateInterestAccrued(
-          userPosition.collateral || 0n,
-          supplyRate,
-          accumulators[0]?.last_updated_ts || 0
-        );
-        
-        const userBorrowedWithInterest = calculateInterestAccrued(
-          userPosition.debt || 0n,
-          borrowRate,
-          accumulators[1]?.last_updated_ts || 0
-        );
-        
-        // Calculate total supplied and borrowed with accrued interest (global pool)
-        const totalSuppliedWithInterest = calculateInterestAccrued(
-          totalSupplied,
-          supplyRate,
-          accumulators[0]?.last_updated_ts || 0
-        );
-        
-        const totalBorrowedWithInterest = calculateInterestAccrued(
-          totalBorrowed,
-          borrowRate,
-          accumulators[1]?.last_updated_ts || 0
-        );
-        
-        // Calculate market liquidity (available liquidity)
-        const marketLiquidity = totalSuppliedWithInterest > totalBorrowedWithInterest 
-          ? totalSuppliedWithInterest - totalBorrowedWithInterest 
-          : 0n;
-        
-        return {
-          id,
-          address: assetAddress,
-          name: data.name,
-          ticker: data.ticker,
-          decimals: data.decimals,
-          oracle: data.oracle,
-          loan_to_value: data.loan_to_value,
-          is_borrowable: data.is_borrowable,
-          deposit_cap: data.deposit_cap,
-          price: priceResponse.price,
-          total_supplied: totalSupplied,
-          total_borrowed: totalBorrowed,
-          total_supplied_with_interest: totalSuppliedWithInterest,
-          total_borrowed_with_interest: totalBorrowedWithInterest,
-          utilization_rate: utilizationRate,
-          borrow_rate: borrowRate,
-          supply_rate: supplyRate,
-          user_supplied: userPosition.collateral || 0n,
-          user_borrowed: userPosition.debt || 0n,
-          user_supplied_with_interest: userSuppliedWithInterest,
-          user_borrowed_with_interest: userBorrowedWithInterest,
-          wallet_balance: walletBalance,
-          wallet_balance_private: walletBalancePrivate,
-          borrowable_value_usd: 0n,
-          market_liquidity: marketLiquidity,
-          deposit_accumulator: {
-            value: accumulators[0]?.value || 0n,
-            last_updated_ts: Number(accumulators[0]?.last_updated_ts) || 0
-          },
-          borrow_accumulator: {
-            value: accumulators[1]?.value || 0n,
-            last_updated_ts: Number(accumulators[1]?.last_updated_ts) || 0
-          },
-          withdrawable_amount: 0n
-        };
-      });
-      
+      // Update state with processed assets
       setAssets(assetsArray);
       
       // Calculate user position metrics

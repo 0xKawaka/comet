@@ -1,0 +1,326 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(16, 18, 29, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modal-container {
+  background-color: rgba(25, 27, 42, 0.95);
+  border-radius: 1rem;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(54, 57, 82, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 1.25rem;
+  border-bottom: 1px solid rgba(54, 57, 82, 0.5);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: white;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #9fa1b2;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  transition: all 0.2s;
+}
+
+.close-button:hover {
+  background-color: rgba(54, 57, 82, 0.5);
+  color: white;
+}
+
+.modal-body {
+  padding: 1.5rem;
+  flex: 1;
+}
+
+.amount-input-container {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.amount-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(54, 57, 82, 0.8);
+  background-color: rgba(34, 37, 58, 0.6);
+  color: white;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.amount-input:focus {
+  border-color: #8a8dff;
+}
+
+.max-button {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  background-color: #5f61aa;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.max-button:disabled {
+  background-color: #363952;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* New wallet balance styles to match AssetView */
+.wallet-balance-section {
+  margin-bottom: 1.25rem;
+  background-color: rgba(34, 37, 58, 0.5);
+  padding: 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(54, 57, 82, 0.5);
+}
+
+.wallet-balance-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  margin: 0 0 0.75rem 0;
+}
+
+.wallet-balance-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.wallet-balance-item {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(34, 37, 58, 0.3);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(54, 57, 82, 0.5);
+}
+
+.balance-type-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9fa1b2;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.balance-value {
+  font-size: 1rem;
+  font-weight: 500;
+  color: white;
+}
+
+.balance-usd-value {
+  font-size: 0.875rem;
+  color: #9fa1b2;
+  margin-top: 0.25rem;
+}
+
+/* Health factor styles */
+.health-factor-container {
+  margin-bottom: 1.25rem;
+}
+
+/* Privacy toggle styles */
+.privacy-toggle-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: rgba(34, 37, 58, 0.4);
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(54, 57, 82, 0.5);
+}
+
+.privacy-label {
+  color: white;
+  font-size: 0.875rem;
+}
+
+.privacy-toggle-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.privacy-status {
+  margin-right: 10px;
+  font-size: 0.875rem;
+}
+
+.privacy-status-on {
+  font-weight: 600;
+  color: #d9fbff;
+}
+
+.privacy-status-off {
+  color: #9fa1b2;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #363952;
+  transition: .3s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: #8a8dff;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+}
+
+.toggle-switch-disabled {
+  cursor: not-allowed;
+}
+
+.toggle-slider-disabled {
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #ef4444;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  font-size: 0.875rem;
+}
+
+.modal-footer {
+  padding: 1.25rem;
+  border-top: 1px solid rgba(54, 57, 82, 0.5);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.cancel-button {
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(54, 57, 82, 0.8);
+  background-color: transparent;
+  color: #9fa1b2;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.875rem;
+}
+
+.cancel-button:hover:not(:disabled) {
+  background-color: rgba(54, 57, 82, 0.3);
+  color: white;
+}
+
+.cancel-button:disabled {
+  cursor: not-allowed;
+}
+
+.action-button-modal {
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  border: none;
+  background-color: #5f61aa;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.875rem;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-button-modal:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #363952;
+}
+
+.deposit-button, .borrow-button {
+  background: linear-gradient(to right, #d9fbff, #7531fd);
+  color: #ffffff;
+}
+
+.withdraw-button, .repay-button {
+  background-color: #5f61aa;
+  color: #ffffff;
+}
+
+.default-button {
+  background-color: #363952;
+  color: #ffffff;
+} 

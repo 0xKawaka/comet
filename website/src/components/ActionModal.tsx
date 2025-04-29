@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Asset } from '../contexts/LendingContext';
-import { formatTokenAmount } from '../utils/formatters';
+import { formatTokenAmount, formatUsdValue } from '../utils/formatters';
+import { tokenToUsd } from '../utils/precisionConstants';
+import { FiUnlock, FiLock } from 'react-icons/fi';
 import HealthFactorPreview from './HealthFactorPreview';
+import './ActionModal.css';
 
 interface ActionModalProps {
   isOpen: boolean;
@@ -72,177 +75,74 @@ const ActionModal = ({
     }
   };
 
-  const getActionButtonStyle = () => {
-    switch (actionType) {
-      case 'deposit':
-      case 'borrow':
-        return {
-          background: 'linear-gradient(to right, #d9fbff, #7531fd)',
-          color: '#ffffff'
-        };
-      case 'withdraw':
-      case 'repay':
-        return {
-          backgroundColor: '#5f61aa',
-          color: '#ffffff'
-        };
-      default:
-        return {
-          backgroundColor: '#363952',
-          color: '#ffffff'
-        };
-    }
-  };
-
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(16, 18, 29, 0.85)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      backdropFilter: 'blur(4px)'
-    }} onClick={onClose}>
-      <div style={{
-        backgroundColor: 'rgba(25, 27, 42, 0.95)',
-        borderRadius: '1rem',
-        width: '90%',
-        maxWidth: '480px',
-        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-        border: '1px solid rgba(54, 57, 82, 0.5)',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column'
-      }} onClick={e => e.stopPropagation()}>
-        <div style={{
-          padding: '1.25rem',
-          borderBottom: '1px solid rgba(54, 57, 82, 0.5)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <h2 style={{
-            margin: 0,
-            fontSize: '1.25rem',
-            fontWeight: '600',
-            color: 'white'
-          }}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-container" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">
             {getActionTitle()} {asset.name} ({asset.ticker})
           </h2>
-          <button style={{
-            background: 'none',
-            border: 'none',
-            fontSize: '1.5rem',
-            color: '#9fa1b2',
-            cursor: 'pointer',
-            padding: '0.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: '50%',
-            width: '2rem',
-            height: '2rem',
-            transition: 'all 0.2s'
-          }} 
-          onClick={onClose}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(54, 57, 82, 0.5)';
-            e.currentTarget.style.color = 'white';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent';
-            e.currentTarget.style.color = '#9fa1b2';
-          }}>
+          <button 
+            className="close-button"
+            onClick={onClose}
+          >
             &times;
           </button>
         </div>
         
-        <div style={{
-          padding: '1.5rem',
-          flex: 1
-        }}>
-          <div style={{
-            display: 'flex',
-            gap: '0.5rem',
-            marginBottom: '1rem'
-          }}>
+        <div className="modal-body">
+          <div className="amount-input-container">
             <input
               type="text"
               placeholder="Amount"
               value={amount}
               onChange={e => setAmount(e.target.value)}
               disabled={isSubmitting}
-              style={{
-                flex: 1,
-                padding: '0.75rem 1rem',
-                borderRadius: '0.5rem',
-                border: '1px solid rgba(54, 57, 82, 0.8)',
-                backgroundColor: 'rgba(34, 37, 58, 0.6)',
-                color: 'white',
-                fontSize: '1rem',
-                outline: 'none',
-                transition: 'border-color 0.2s'
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = '#8a8dff';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = 'rgba(54, 57, 82, 0.8)';
-              }}
+              className="amount-input"
             />
             <button 
               onClick={handleSetMax}
               disabled={currentMaxAmount === 0n || isSubmitting}
-              style={{
-                padding: '0.75rem 1rem',
-                borderRadius: '0.5rem',
-                border: 'none',
-                backgroundColor: currentMaxAmount === 0n || isSubmitting ? '#363952' : '#5f61aa',
-                color: 'white',
-                fontWeight: '600',
-                cursor: currentMaxAmount === 0n || isSubmitting ? 'not-allowed' : 'pointer',
-                opacity: currentMaxAmount === 0n || isSubmitting ? 0.5 : 1,
-                transition: 'all 0.2s'
-              }}
+              className="max-button"
             >
               MAX
             </button>
           </div>
           
-          <div style={{ 
-            marginBottom: '1.25rem',
-            backgroundColor: 'rgba(34, 37, 58, 0.4)',
-            padding: '0.75rem',
-            borderRadius: '0.5rem',
-            border: '1px solid rgba(54, 57, 82, 0.5)'
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              marginBottom: '0.5rem'
-            }}>
-              <span style={{ color: '#9fa1b2', fontSize: '0.875rem' }}>Public Balance:</span>
-              <span style={{ color: 'white', fontSize: '0.875rem', fontWeight: '500' }}>
-                {formatTokenAmount(asset.wallet_balance, asset.decimals)} {asset.ticker}
-              </span>
+          {actionType === 'deposit' && (
+            <div className="wallet-balance-section">
+              <h3 className="wallet-balance-title">Wallet Balance</h3>
+              <div className="wallet-balance-container">
+                <div className="wallet-balance-item">
+                  <div className="balance-type-label">
+                    <FiUnlock size={12} />
+                    <span>Public</span>
+                  </div>
+                  <div className="balance-value">
+                    {formatTokenAmount(asset.wallet_balance, asset.decimals)} {asset.ticker}
+                  </div>
+                  <div className="balance-usd-value">
+                    ${formatUsdValue(tokenToUsd(asset.wallet_balance, asset.decimals, asset.price), asset.decimals)}
+                  </div>
+                </div>
+                
+                <div className="wallet-balance-item">
+                  <div className="balance-type-label">
+                    <FiLock size={12} />
+                    <span>Private</span>
+                  </div>
+                  <div className="balance-value">
+                    {formatTokenAmount(asset.wallet_balance_private, asset.decimals)} {asset.ticker}
+                  </div>
+                  <div className="balance-usd-value">
+                    ${formatUsdValue(tokenToUsd(asset.wallet_balance_private, asset.decimals, asset.price), asset.decimals)}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between'
-            }}>
-              <span style={{ color: '#9fa1b2', fontSize: '0.875rem' }}>Private Balance:</span>
-              <span style={{ color: 'white', fontSize: '0.875rem', fontWeight: '500' }}>
-                {formatTokenAmount(asset.wallet_balance_private, asset.decimals)} {asset.ticker}
-              </span>
-            </div>
-          </div>
+          )}
           
-          <div style={{ marginBottom: '1.25rem' }}>
+          <div className="health-factor-container">
             <HealthFactorPreview 
               asset={asset}
               actionType={actionType}
@@ -250,129 +150,44 @@ const ActionModal = ({
             />
           </div>
           
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between',
-            backgroundColor: 'rgba(34, 37, 58, 0.4)',
-            padding: '0.75rem',
-            borderRadius: '0.5rem',
-            border: '1px solid rgba(54, 57, 82, 0.5)'
-          }}>
-            <span style={{ color: 'white', fontSize: '0.875rem' }}>Private Transaction</span>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span style={{ 
-                marginRight: '10px', 
-                fontSize: '0.875rem',
-                fontWeight: isPrivate ? '600' : 'normal',
-                color: isPrivate ? '#d9fbff' : '#9fa1b2'
-              }}>
+          <div className="privacy-toggle-container">
+            <span className="privacy-label">Private Transaction</span>
+            <div className="privacy-toggle-wrapper">
+              <span className={`privacy-status ${isPrivate ? 'privacy-status-on' : 'privacy-status-off'}`}>
                 {isPrivate ? 'ON' : 'OFF'}
               </span>
-              <label style={{ 
-                position: 'relative', 
-                display: 'inline-block', 
-                width: '48px', 
-                height: '24px',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer'
-              }}>
+              <label className={`toggle-switch ${isSubmitting ? 'toggle-switch-disabled' : ''}`}>
                 <input
                   type="checkbox"
                   checked={isPrivate}
                   onChange={() => setIsPrivate(!isPrivate)}
                   disabled={isSubmitting}
-                  style={{ opacity: 0, width: 0, height: 0 }}
                 />
-                <span style={{
-                  position: 'absolute',
-                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: isPrivate ? '#8a8dff' : '#363952',
-                  transition: '.3s',
-                  borderRadius: '24px',
-                }}>
-                  <span style={{
-                    position: 'absolute',
-                    content: '""',
-                    height: '18px',
-                    width: '18px',
-                    left: isPrivate ? '27px' : '3px',
-                    bottom: '3px',
-                    backgroundColor: 'white',
-                    transition: '.3s',
-                    borderRadius: '50%',
-                  }}/>
+                <span className={`toggle-slider ${isSubmitting ? 'toggle-slider-disabled' : ''}`}>
                 </span>
               </label>
             </div>
           </div>
           
           {error && (
-            <div style={{ 
-              color: '#ef4444', 
-              marginTop: '1rem',
-              padding: '0.75rem',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              borderRadius: '0.5rem',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              fontSize: '0.875rem'
-            }}>
+            <div className="error-message">
               {error}
             </div>
           )}
         </div>
         
-        <div style={{
-          padding: '1.25rem',
-          borderTop: '1px solid rgba(54, 57, 82, 0.5)',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: '0.75rem'
-        }}>
+        <div className="modal-footer">
           <button 
             onClick={onClose}
             disabled={isSubmitting}
-            style={{
-              padding: '0.625rem 1.25rem',
-              borderRadius: '0.5rem',
-              border: '1px solid rgba(54, 57, 82, 0.8)',
-              backgroundColor: 'transparent',
-              color: '#9fa1b2',
-              fontWeight: '600',
-              cursor: isSubmitting ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s',
-              fontSize: '0.875rem'
-            }}
-            onMouseEnter={(e) => {
-              if (!isSubmitting) {
-                e.currentTarget.style.backgroundColor = 'rgba(54, 57, 82, 0.3)';
-                e.currentTarget.style.color = 'white';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = '#9fa1b2';
-            }}
+            className="cancel-button"
           >
             Cancel
           </button>
           <button 
             onClick={handleSubmit}
             disabled={isSubmitting || !amount || parseFloat(amount) <= 0}
-            style={{
-              ...getActionButtonStyle(),
-              padding: '0.625rem 1.25rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              fontWeight: '600',
-              cursor: (isSubmitting || !amount || parseFloat(amount) <= 0) ? 'not-allowed' : 'pointer',
-              opacity: (isSubmitting || !amount || parseFloat(amount) <= 0) ? 0.5 : 1,
-              transition: 'all 0.2s',
-              fontSize: '0.875rem'
-            }}
+            className="action-button-modal"
           >
             {isSubmitting ? 'Processing...' : getActionTitle()}
           </button>

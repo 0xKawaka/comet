@@ -224,19 +224,25 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                             </div>
                           </td>
                           <td 
-                            onClick={e => e.stopPropagation()} 
+                            onClick={() => onAssetSelect(asset.id)} 
                             className="action-cell"
                           >
                             <div className="action-buttons">
                               <button 
-                                onClick={() => openModal(asset, 'deposit')}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openModal(asset, 'deposit');
+                                }}
                                 disabled={asset.wallet_balance === 0n}
                                 className="primary-button"
                               >
                                 Supply
                               </button>
                               <button 
-                                onClick={() => openModal(asset, 'withdraw')}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openModal(asset, 'withdraw');
+                                }}
                                 disabled={availableToWithdraw === 0n}
                                 className="secondary-button"
                               >
@@ -321,12 +327,15 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                             </div>
                           </td>
                           <td 
-                            onClick={e => e.stopPropagation()} 
+                            onClick={() => onAssetSelect(asset.id)} 
                             className="action-cell"
                           >
                             <div className="action-buttons">
                               <button 
-                                onClick={() => openModal(asset, 'borrow')}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openModal(asset, 'borrow');
+                                }}
                                 disabled={!asset.is_borrowable || availableToBorrow === 0n}
                                 title={!asset.is_borrowable ? "Asset not borrowable" : availableToBorrow === 0n ? "No assets available to borrow" : ""}
                                 className="primary-button"
@@ -334,7 +343,10 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
                                 Borrow
                               </button>
                               <button 
-                                onClick={() => openModal(asset, 'repay')}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openModal(asset, 'repay');
+                                }}
                                 disabled={asset.wallet_balance === 0n}
                                 className="secondary-button"
                               >
