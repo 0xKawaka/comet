@@ -183,8 +183,18 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
             <FiActivity size={14} />
             <span>Utilization Rate</span>
           </div>
-          <div className="stat-value-highlight">
+          <div className="stat-value">
             {formatPercentage(asset.utilization_rate * 100)}
+          </div>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-label">
+            <FiPercent size={14} />
+            <span>Loan to Value</span>
+          </div>
+          <div className="stat-value">
+            {formatPercentage(asset.loan_to_value * 100)}
           </div>
         </div>
         
@@ -205,16 +215,6 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
           </div>
           <div className="stat-value-highlight">
             {formatPercentage(asset.borrow_rate * 100)}
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-label">
-            <FiPercent size={14} />
-            <span>Loan to Value</span>
-          </div>
-          <div className="stat-value">
-            {formatPercentage(asset.loan_to_value * 100)}
           </div>
         </div>
       </div>
