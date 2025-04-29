@@ -9,6 +9,7 @@ import allAssets from '../blockchain/dev-all-assets.json';
 import { PriceFeedContract } from '@aztec/noir-contracts.js/PriceFeed';
 import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR, PERCENTAGE_PRECISION, PRICE_PRECISION_FACTOR, INTEREST_PRECISION_FACTOR } from '../utils/precisionConstants';
 import { AuthWitness } from '@aztec/aztec.js';
+import { computePrivateAddress } from '../utils/privacy';
 
 const marketId = 1; // This should eventually be derived from the asset or configuration
 
@@ -402,10 +403,14 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     ]);
     
     // For each asset, prepare all data fetch promises
-    const assetDataPromises = assetEntries.map(([id, data], index) => {
+    const assetDataPromises = assetEntries.map(async ([id, data], index) => {
       const assetAddress = assetAddresses[index];
       const tokenContract = tokenContracts[index];
       const priceFeedContract = priceFeedContracts[index];
+
+      const privateAddress = computePrivateAddress(wallet.getSecretKey(), address);
+      let privatePosition = await contract.methods.get_position(privateAddress, marketId, assetAddress).simulate();
+      console.log("Private position:", privatePosition);
       
       // Bundle all the async calls for this asset
       return Promise.all([
@@ -654,8 +659,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
           address,
           amountBigInt,
           nonce,
+          wallet.getSecretKey(),
           0n,
-          address,
           marketId,
           asset.address
         ).send({ authWitnesses: [transferToPublicAuthwit] }).wait();

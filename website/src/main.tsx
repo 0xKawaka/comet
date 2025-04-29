@@ -9,11 +9,9 @@ import { LendingProvider } from './contexts/LendingContext.tsx'
 const PXE_URL = import.meta.env.VITE_PXE_URL || 'http://localhost:8080';
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <WalletProvider pxeUrl={PXE_URL}>
-      <LendingProvider>
-        <App />
-      </LendingProvider>
-    </WalletProvider>
-  </StrictMode>,
+  <WalletProvider pxeUrl={PXE_URL}>
+    <LendingProvider>
+      <App />
+    </LendingProvider>
+  </WalletProvider>
 )
