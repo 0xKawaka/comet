@@ -11,9 +11,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@aztec/accounts": "^0.85.0",
-    "@aztec/aztec.js": "^0.85.0",
-    "@aztec/noir-contracts.js": "^0.85.0",
+    "@aztec/accounts": "^0.86.0",
+    "@aztec/aztec.js": "^0.86.0",
+    "@aztec/noir-contracts.js": "^0.86.0",
     "@tailwindcss/vite": "^4.1.4",
     "autoprefixer": "^10.4.21",
     "ethers": "^6.13.5",
