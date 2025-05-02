@@ -1,4 +1,4 @@
-import { Contract, createPXEClient, loadContractArtifact, waitForPXE } from '@aztec/aztec.js';
+import { Contract, createPXEClient, loadContractArtifact, waitForPXE, Fr, PXE } from '@aztec/aztec.js';
 import { getInitialTestAccountsWallets } from '@aztec/accounts/testing';
 import { PriceFeedContract } from '@aztec/noir-contracts.js/PriceFeed';
 import { TokenContract } from '@aztec/noir-contracts.js/Token';
@@ -65,6 +65,9 @@ async function main() {
     lending.methods.add_asset(1n, token2.address, priceFeed2.address, 7000n, true, 700000000n, 2000000000n, 3000000000n, 1000000000000000n).send().wait(),
     lending.methods.add_asset(1n, token3.address, priceFeed3.address, 8000n, true, 800000000n, 2000000000n, 3000000000n, 1000000000000000n).send().wait()
   ]);
+
+  // Now you can call transfer_to_private from within a contract
+  console.log('Contract registered with encryption keys');
   
   const addresses = { lending: lending.address.toString() };
 

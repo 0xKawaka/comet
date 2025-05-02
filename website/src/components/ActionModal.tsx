@@ -96,7 +96,14 @@ const ActionModal = ({
               type="text"
               placeholder="Amount"
               value={amount}
-              onChange={e => setAmount(e.target.value)}
+              onChange={e => {
+                // Only allow digits and at most one decimal point
+                const newValue = e.target.value;
+                const regex = /^(\d*\.?\d*)$/;
+                if (newValue === '' || regex.test(newValue)) {
+                  setAmount(newValue);
+                }
+              }}
               disabled={isSubmitting}
               className="amount-input"
             />

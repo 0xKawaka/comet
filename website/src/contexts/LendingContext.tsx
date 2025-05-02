@@ -407,10 +407,6 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       const assetAddress = assetAddresses[index];
       const tokenContract = tokenContracts[index];
       const priceFeedContract = priceFeedContracts[index];
-
-      const privateAddress = computePrivateAddress(wallet.getSecretKey(), address);
-      let privatePosition = await contract.methods.get_position(privateAddress, marketId, assetAddress).simulate();
-      console.log("Private position:", privatePosition);
       
       // Bundle all the async calls for this asset
       return Promise.all([
@@ -696,7 +692,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       
       if (isPrivate) {
         await lendingContract.methods.withdraw_private(
-          wallet.getSecretKey(),
+          0n,
           address,
           amountBigInt,
           marketId,
@@ -731,7 +727,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       
       if (isPrivate) {
         await lendingContract.methods.borrow_private(
-          wallet.getSecretKey(),
+          0n,
           address,
           amountBigInt,
           marketId,

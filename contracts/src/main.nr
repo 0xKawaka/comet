@@ -158,22 +158,29 @@ pub contract Lending {
 
      #[private]
     fn borrow_private(secret: Field, to: AztecAddress, amount: u128, market_id: Field, asset_address: AztecAddress) {
-        let on_behalf_of = compute_identifier(secret, 0, context.msg_sender().to_field());
+        let on_behalf_of = compute_identifier(secret, context.msg_sender().to_field(), context.msg_sender().to_field());
         let _ = Lending::at(context.this_address())
-            ._borrow(AztecAddress::from_field(on_behalf_of), to, amount, market_id, asset_address)
+            ._borrow(AztecAddress::from_field(on_behalf_of), amount, market_id, asset_address)
             .enqueue(&mut context);
+        // TODO: find a fix to transfer_to_private
+        let _ = Token::at(asset_address)
+        .transfer_in_public(context.this_address(), to, amount, 0)
+        .enqueue(&mut context);
     }
 
     #[public]
     fn borrow_public(to: AztecAddress, amount: u128, market_id: Field, asset_address: AztecAddress) {
-        let _ = Lending::at(context.this_address())._borrow(context.msg_sender(), to, amount, market_id, asset_address).call(
+        let _ = Lending::at(context.this_address())._borrow(context.msg_sender(), amount, market_id, asset_address).call(
             &mut context,
         );
+        let _ = Token::at(asset_address)
+        .transfer_in_public(context.this_address(), to, amount, 0)
+        .call(&mut context);
     }
 
     #[public]
     #[internal]
-    fn _borrow(owner: AztecAddress, to: AztecAddress, amount: u128, market_id: Field, asset_address: AztecAddress) {
+    fn _borrow(owner: AztecAddress, amount: u128, market_id: Field, asset_address: AztecAddress) {
         let asset_loc = storage.market_assets.at(market_id).at(asset_address);
         let asset: Asset = asset_loc.read();
 
@@ -197,18 +204,18 @@ pub contract Lending {
         let scaled_total_borrowed_asset_loc = storage.scaled_total_borrowed_assets.at(market_id).at(asset_address);
         let scaled_total_borrowed_asset: u128 = scaled_total_borrowed_asset_loc.read();
         scaled_total_borrowed_asset_loc.write(scaled_total_borrowed_asset + scaled_amount);
-        
-        let _ = Token::at(asset_address)
-            .transfer_in_public(context.this_address(), to, amount, 0)
-            .call(&mut context);
     }
 
     #[private]
     fn withdraw_private(secret: Field, to: AztecAddress, amount: u128, market_id: Field, collateral_asset: AztecAddress) {
-        let on_behalf_of = compute_identifier(secret, 0, context.msg_sender().to_field());
+        let on_behalf_of = compute_identifier(secret, context.msg_sender().to_field(), context.msg_sender().to_field());
         Lending::at(context.this_address())
             ._withdraw(AztecAddress::from_field(on_behalf_of), to, amount, market_id, collateral_asset)
             .enqueue(&mut context);
+        // TODO: find a fix to transfer_to_private
+        let _ = Token::at(collateral_asset)
+        .transfer_in_public(context.this_address(), to, amount, 0)
+        .enqueue(&mut context);
     }
 
     #[public]
@@ -216,6 +223,9 @@ pub contract Lending {
         let _ = Lending::at(context.this_address())
             ._withdraw(context.msg_sender(), to, amount, market_id, collateral_asset)
             .call(&mut context);
+        let _ = Token::at(collateral_asset)
+        .transfer_in_public(context.this_address(), to, amount, 0)
+        .call(&mut context);
     }
 
     #[public]
@@ -252,10 +262,6 @@ pub contract Lending {
         let scaled_total_deposited_asset_loc = storage.scaled_total_deposited_assets.at(market_id).at(collateral_asset);
         let scaled_total_deposited_asset: u128 = scaled_total_deposited_asset_loc.read();
         scaled_total_deposited_asset_loc.write(scaled_total_deposited_asset - scaled_withdraw_amount);
-
-        let _ = Token::at(collateral_asset)
-            .transfer_in_public(context.this_address(), to, amount, 0)
-            .call(&mut context);
     }
 
     #[public]
