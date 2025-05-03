@@ -323,4 +323,55 @@ input:checked + .toggle-slider:before {
 .default-button {
   background-color: #363952;
   color: #ffffff;
+}
+
+.private-address-section {
+  margin-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 16px;
+}
+
+.private-address-title {
+  font-size: 14px;
+  margin-bottom: 12px;
+  color: #a0aec0;
+}
+
+.private-address-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.private-address-option {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.private-address-option:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.private-address-option.selected {
+  background-color: rgba(79, 209, 197, 0.15);
+  border: 1px solid rgba(79, 209, 197, 0.3);
+}
+
+.address-label {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.address-value {
+  font-size: 12px;
+  color: #a0aec0;
+  font-family: monospace;
 } 

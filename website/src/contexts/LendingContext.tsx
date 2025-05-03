@@ -1,14 +1,13 @@
 import { ReactNode, createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { AztecAddress, Fr } from '@aztec/aztec.js';
 import { parseUnits, formatUnits } from 'ethers';
-import { useWallet } from '../hooks';
+import { useWallet, useTransaction } from '../hooks';
 import { LendingContract } from '../blockchain/contracts/Lending';
 import { TokenContract } from '@aztec/noir-contracts.js/Token';
 import devContracts from '../blockchain/dev-contracts.json';
 import allAssets from '../blockchain/dev-all-assets.json';
 import { PriceFeedContract } from '@aztec/noir-contracts.js/PriceFeed';
 import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR, PERCENTAGE_PRECISION, PRICE_PRECISION_FACTOR, INTEREST_PRECISION_FACTOR } from '../utils/precisionConstants';
-import { AuthWitness } from '@aztec/aztec.js';
 import { computePrivateAddress } from '../utils/privacy';
 
 const marketId = 1; // This should eventually be derived from the asset or configuration
@@ -74,11 +73,12 @@ interface UserPosition {
 interface LendingContextType {
   assets: Asset[];
   userPosition: UserPosition;
+  lendingContract: LendingContract | null;
   isLoading: boolean;
-  depositAsset: (assetId: string, amount: string, isPrivate: boolean) => Promise<void>;
-  withdrawAsset: (assetId: string, amount: string, isPrivate: boolean) => Promise<void>;
-  borrowAsset: (assetId: string, amount: string, isPrivate: boolean) => Promise<void>;
-  repayAsset: (assetId: string, amount: string, isPrivate: boolean) => Promise<void>;
+  depositAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
+  withdrawAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
+  borrowAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
+  repayAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
   refreshData: () => Promise<void>;
 }
 
@@ -108,6 +108,7 @@ interface AssetDataResult {
 
 const defaultContext: LendingContextType = {
   assets: [],
+  lendingContract: null,
   userPosition: {
     health_factor: Infinity,
     total_supplied_value: 0n,
@@ -121,7 +122,7 @@ const defaultContext: LendingContextType = {
   refreshData: async () => {}
 };
 
-const LendingContext = createContext<LendingContextType>(defaultContext);
+export const LendingContext = createContext<LendingContextType>(defaultContext);
 
 export const useLending = () => useContext(LendingContext);
 
@@ -185,6 +186,13 @@ interface LendingProviderProps {
 
 export const LendingProvider = ({ children }: LendingProviderProps) => {
   const { wallet, address } = useWallet();
+  const { 
+    depositAsset: txDepositAsset, 
+    withdrawAsset: txWithdrawAsset, 
+    borrowAsset: txBorrowAsset, 
+    repayAsset: txRepayAsset,
+    privateAddresses 
+  } = useTransaction();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [lendingContract, setLendingContract] = useState<LendingContract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -584,94 +592,26 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     return asset;
   };
 
-  // Helper function to set up token contract authorization
-  const setupTokenAuthorization = async (
-    tokenContract: TokenContract, 
-    lendingContract: LendingContract,
-    amount: bigint, 
-    nonce: bigint, 
-    isPrivate: boolean
-  ): Promise<AuthWitness | undefined> => {
-    if (!wallet || !address) {
-      throw new Error("Wallet not initialized");
-    }
-    
-    if (isPrivate) {
-      return await wallet.createAuthWit({
-        caller: lendingContract.address,
-        action: tokenContract.methods.transfer_to_public(
-          address,
-          lendingContract.address,
-          amount,
-          nonce,
-        ),
-      });
-    } else {
-      const validateAction = await wallet.setPublicAuthWit(
-        {
-          caller: lendingContract.address,
-          action: tokenContract.methods.transfer_in_public(
-            address,
-            lendingContract.address,
-            amount,
-            nonce,
-          ),
-        },
-        true,
-      );
-      await validateAction.send().wait();
-      return undefined;
-    }
-  };
-
-  const depositAsset = async (assetId: string, amount: string, isPrivate: boolean) => {
+  const depositAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => {
     try {
       const asset = validateTransaction(assetId);
       
-      if (!lendingContract || !wallet || !address) {
-        throw new Error("Wallet or lending contract not initialized");
+      if (!lendingContract) {
+        throw new Error("Lending contract not initialized");
       }
       
-      // Use ethers.js parseUnits to safely handle decimal inputs
-      const amountBigInt = parseUnits(amount, asset.decimals);
-      const nonce = BigInt(Fr.random().toString());
+      // Use the transaction context to perform the deposit
+      await txDepositAsset(
+        lendingContract, 
+        asset, 
+        amount, 
+        isPrivate,
+        privateRecipient,
+        secret,
+        marketId
+      );
       
-      const tokenContract = await TokenContract.at(asset.address, wallet);
-      
-      if (isPrivate) {
-        const transferToPublicAuthwit = await setupTokenAuthorization(
-          tokenContract, 
-          lendingContract, 
-          amountBigInt, 
-          nonce, 
-          true
-        );
-        
-        if (!transferToPublicAuthwit) {
-          throw new Error("Failed to create auth witness");
-        }
-        
-        await lendingContract.methods.deposit_private(
-          address,
-          amountBigInt,
-          nonce,
-          wallet.getSecretKey(),
-          0n,
-          marketId,
-          asset.address
-        ).send({ authWitnesses: [transferToPublicAuthwit] }).wait();
-      } else {
-        await setupTokenAuthorization(tokenContract, lendingContract, amountBigInt, nonce, false);
-
-        await lendingContract.methods.deposit_public(
-          amountBigInt,
-          nonce,
-          address,
-          marketId,
-          asset.address
-        ).send().wait();
-      }
-      
+      // Refresh data after the transaction
       await refreshData();
     } catch (error) {
       console.error(`Error depositing asset:`, error);
@@ -679,34 +619,26 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     }
   };
 
-  const withdrawAsset = async (assetId: string, amount: string, isPrivate: boolean) => {
+  const withdrawAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => {
     try {
       const asset = validateTransaction(assetId);
       
-      if (!lendingContract || !wallet || !address) {
-        throw new Error("Wallet or lending contract not initialized");
+      if (!lendingContract) {
+        throw new Error("Lending contract not initialized");
       }
       
-      // Use ethers.js parseUnits to safely handle decimal inputs
-      const amountBigInt = parseUnits(amount, asset.decimals);
+      // Use the transaction context to perform the withdrawal
+      await txWithdrawAsset(
+        lendingContract, 
+        asset, 
+        amount, 
+        isPrivate,
+        privateRecipient,
+        secret,
+        marketId
+      );
       
-      if (isPrivate) {
-        await lendingContract.methods.withdraw_private(
-          0n,
-          address,
-          amountBigInt,
-          marketId,
-          asset.address
-        ).send().wait();
-      } else {
-        await lendingContract.methods.withdraw_public(
-          address,
-          amountBigInt,
-          marketId,
-          asset.address
-        ).send().wait();
-      }
-      
+      // Refresh data after the transaction
       await refreshData();
     } catch (error) {
       console.error(`Error withdrawing asset:`, error);
@@ -714,34 +646,26 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     }
   };
 
-  const borrowAsset = async (assetId: string, amount: string, isPrivate: boolean) => {
+  const borrowAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => {
     try {
       const asset = validateTransaction(assetId);
       
-      if (!lendingContract || !wallet || !address) {
-        throw new Error("Wallet or lending contract not initialized");
+      if (!lendingContract) {
+        throw new Error("Lending contract not initialized");
       }
       
-      // Use ethers.js parseUnits to safely handle decimal inputs
-      const amountBigInt = parseUnits(amount, asset.decimals);
+      // Use the transaction context to perform the borrow
+      await txBorrowAsset(
+        lendingContract, 
+        asset, 
+        amount, 
+        isPrivate,
+        privateRecipient,
+        secret,
+        marketId
+      );
       
-      if (isPrivate) {
-        await lendingContract.methods.borrow_private(
-          0n,
-          address,
-          amountBigInt,
-          marketId,
-          asset.address
-        ).send().wait();
-      } else {
-        await lendingContract.methods.borrow_public(
-          address,
-          amountBigInt,
-          marketId,
-          asset.address
-        ).send().wait();
-      }
-      
+      // Refresh data after the transaction
       await refreshData();
     } catch (error) {
       console.error(`Error borrowing asset:`, error);
@@ -749,54 +673,26 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     }
   };
 
-  const repayAsset = async (assetId: string, amount: string, isPrivate: boolean) => {
+  const repayAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => {
     try {
       const asset = validateTransaction(assetId);
       
-      if (!lendingContract || !wallet || !address) {
-        throw new Error("Wallet or lending contract not initialized");
+      if (!lendingContract) {
+        throw new Error("Lending contract not initialized");
       }
       
-      // Use ethers.js parseUnits to safely handle decimal inputs
-      const amountBigInt = parseUnits(amount, asset.decimals);
-      const nonce = BigInt(Fr.random().toString());
+      // Use the transaction context to perform the repay
+      await txRepayAsset(
+        lendingContract, 
+        asset, 
+        amount, 
+        isPrivate,
+        privateRecipient,
+        secret,
+        marketId
+      );
       
-      const tokenContract = await TokenContract.at(asset.address, wallet);
-      
-      if (isPrivate) {
-        const transferToPublicAuthwit = await setupTokenAuthorization(
-          tokenContract, 
-          lendingContract, 
-          amountBigInt, 
-          nonce, 
-          true
-        );
-        
-        if (!transferToPublicAuthwit) {
-          throw new Error("Failed to create auth witness");
-        }
-        
-        await lendingContract.methods.repay_private(
-          address,
-          amountBigInt,
-          nonce,
-          0n,
-          address,
-          marketId,
-          asset.address
-        ).send({ authWitnesses: [transferToPublicAuthwit] }).wait();
-      } else {
-        await setupTokenAuthorization(tokenContract, lendingContract, amountBigInt, nonce, false);
-
-        await lendingContract.methods.repay_public(
-          amountBigInt,
-          nonce,
-          address,
-          marketId,
-          asset.address
-        ).send().wait();
-      }
-      
+      // Refresh data after the transaction
       await refreshData();
     } catch (error) {
       console.error(`Error repaying asset:`, error);
@@ -830,6 +726,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       value={{
         assets,
         userPosition,
+        lendingContract,
         isLoading,
         depositAsset,
         withdrawAsset,

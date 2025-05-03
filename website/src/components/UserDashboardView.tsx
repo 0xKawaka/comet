@@ -5,19 +5,37 @@ import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR } from '.
 import ActionModal from './ActionModal';
 import { FiDollarSign, FiTrendingUp, FiLoader } from 'react-icons/fi';
 import HealthFactorIndicator from './HealthFactorIndicator';
+import { useTransaction } from '../hooks';
+import { AztecAddress } from '@aztec/aztec.js';
 import './UserDashboardView.css';
 
 interface UserDashboardViewProps {
   onAssetSelect: (assetId: string) => void;
 }
 
+type ActionType = 'deposit' | 'withdraw' | 'borrow' | 'repay';
+
+// Helper component for rendering asset info
+const AssetInfo = ({ asset }: { asset: Asset }) => (
+  <div className="asset-info">
+    <div className="asset-icon">
+      {asset.ticker.charAt(0)}
+    </div>
+    <div>
+      <div className="asset-name">{asset.name}</div>
+      <div className="asset-ticker">{asset.ticker}</div>
+    </div>
+  </div>
+);
+
 const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
   const { assets, userPosition, isLoading, depositAsset, withdrawAsset, borrowAsset, repayAsset } = useLending();
+  const { privateAddresses } = useTransaction();
   
   const [modalOpen, setModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
     asset: Asset;
-    actionType: 'deposit' | 'withdraw' | 'borrow' | 'repay';
+    actionType: ActionType;
     maxAmount: bigint;
   } | null>(null);
 
@@ -37,61 +55,60 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
   const depositedAssets = assets.filter(asset => asset.user_supplied_with_interest > 0n);
   const borrowedAssets = assets.filter(asset => asset.user_borrowed_with_interest > 0n);
 
-  const openModal = (asset: Asset, actionType: 'deposit' | 'withdraw' | 'borrow' | 'repay') => {
-    let maxAmount = 0n;
-    
+  // Calculate the maximum amount for different action types
+  const calculateMaxAmount = (asset: Asset, actionType: ActionType): bigint => {
     switch (actionType) {
       case 'deposit':
-        maxAmount = asset.wallet_balance;
-        break;
-      case 'withdraw':
+        return asset.wallet_balance;
+      
+      case 'withdraw': {
         // Consider withdrawable amount and market liquidity constraints
         const availableToWithdraw = asset.withdrawable_amount < asset.market_liquidity 
           ? asset.withdrawable_amount 
           : asset.market_liquidity;
-        maxAmount = availableToWithdraw;
-        break;
-      case 'borrow':
-        // Use borrowable_value_usd from the asset instead of manual calculation
+        return availableToWithdraw;
+      }
+      
+      case 'borrow': {
+        // Use borrowable_value_usd from the asset
         const borrowableAmount = usdToToken(asset.borrowable_value_usd, asset.decimals, asset.price);
-        
         // Consider market liquidity constraints
-        const availableToBorrow = borrowableAmount < asset.market_liquidity 
+        return borrowableAmount < asset.market_liquidity 
           ? borrowableAmount 
           : asset.market_liquidity;
-        
-        maxAmount = availableToBorrow;
-        break;
+      }
+      
       case 'repay':
-        maxAmount = asset.user_borrowed_with_interest < asset.wallet_balance 
+        return asset.user_borrowed_with_interest < asset.wallet_balance 
           ? asset.user_borrowed_with_interest 
           : asset.wallet_balance;
-        break;
+      
+      default:
+        return 0n;
     }
-    
+  };
+
+  const openModal = (asset: Asset, actionType: ActionType) => {
+    const maxAmount = calculateMaxAmount(asset, actionType);
     setModalConfig({ asset, actionType, maxAmount });
     setModalOpen(true);
   };
 
-  const handleSubmit = async (amount: string, isPrivate: boolean) => {
+  // Map of action types to their handler functions
+  const actionHandlers = {
+    deposit: depositAsset,
+    withdraw: withdrawAsset,
+    borrow: borrowAsset,
+    repay: repayAsset
+  };
+
+  const handleSubmit = async (amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: any) => {
     if (!modalConfig) return;
     
     const { asset, actionType } = modalConfig;
+    const handler = actionHandlers[actionType];
     
-    switch (actionType) {
-      case 'deposit':
-        await depositAsset(asset.id, amount, isPrivate);
-        break;
-      case 'withdraw':
-        await withdrawAsset(asset.id, amount, isPrivate);
-        break;
-      case 'borrow':
-        await borrowAsset(asset.id, amount, isPrivate);
-        break;
-      case 'repay':
-        await repayAsset(asset.id, amount, isPrivate);
-        break;
-    }
+    await handler(asset.id, amount, isPrivate, privateRecipient, secret);
   };
 
   const renderHealthFactor = () => {
@@ -146,6 +163,143 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
     </div>
   );
 
+  // Render buttons for deposit/withdrawal or borrow/repay actions
+  const renderActionButtons = (asset: Asset, actionType: 'supply' | 'borrow') => {
+    if (actionType === 'supply') {
+      const availableToWithdraw = asset.withdrawable_amount < asset.market_liquidity 
+        ? asset.withdrawable_amount : asset.market_liquidity;
+      
+      return (
+        <div className="action-buttons">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              openModal(asset, 'deposit');
+            }}
+            disabled={asset.wallet_balance === 0n}
+            className="primary-button"
+          >
+            Supply
+          </button>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              openModal(asset, 'withdraw');
+            }}
+            disabled={availableToWithdraw === 0n}
+            className="secondary-button"
+          >
+            Withdraw
+          </button>
+        </div>
+      );
+    } else {
+      const borrowableAmount = usdToToken(asset.borrowable_value_usd, asset.decimals, asset.price);
+      const availableToBorrow = borrowableAmount < asset.market_liquidity ? borrowableAmount : asset.market_liquidity;
+      
+      return (
+        <div className="action-buttons">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              openModal(asset, 'borrow');
+            }}
+            disabled={!asset.is_borrowable || availableToBorrow === 0n}
+            title={!asset.is_borrowable ? "Asset not borrowable" : availableToBorrow === 0n ? "No assets available to borrow" : ""}
+            className="primary-button"
+          >
+            Borrow
+          </button>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              openModal(asset, 'repay');
+            }}
+            disabled={asset.wallet_balance === 0n}
+            className="secondary-button"
+          >
+            Repay
+          </button>
+        </div>
+      );
+    }
+  };
+
+  // Render a table for assets (deposits or borrows)
+  const renderAssetTable = (
+    assets: Asset[], 
+    title: string, 
+    totalValueUsd: bigint, 
+    actionType: 'supply' | 'borrow'
+  ) => {
+    const isSupply = actionType === 'supply';
+    const valueKey = isSupply ? 'user_supplied_with_interest' : 'user_borrowed_with_interest';
+    const rateKey = isSupply ? 'supply_rate' : 'borrow_rate';
+    
+    return (
+      <div className="section-content">
+        <div className="section-header">
+          <h3 className="section-title">{title}</h3>
+          <div className={`section-total ${isSupply ? 'positive-total' : 'negative-total'}`}>
+            <FiDollarSign size={14} />
+            <span>Total: ${formatUsdValue(totalValueUsd, 9)}</span>
+          </div>
+        </div>
+        
+        {assets.length === 0 ? (
+          <div className="empty-section">
+            You haven't {isSupply ? 'deposited' : 'borrowed'} any assets yet.
+          </div>
+        ) : (
+          <div className="table-container">
+            <table className="assets-table">
+              <thead className="table-header">
+                <tr>
+                  <th>Asset</th>
+                  <th className="right-align">{isSupply ? 'Deposited' : 'Borrowed'} Amount</th>
+                  <th className="right-align">{isSupply ? 'Supply' : 'Borrow'} Rate</th>
+                  <th className="right-align">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assets.map(asset => {
+                  const amountFormatted = formatTokenAmount(asset[valueKey], asset.decimals);
+                  const valueUsd = formatUsdValue(
+                    tokenToUsd(asset[valueKey], asset.decimals, asset.price),
+                    asset.decimals
+                  );
+                  const rate = formatPercentage(asset[rateKey] * 100);
+                  
+                  return (
+                    <tr 
+                      key={asset.id} 
+                      onClick={() => onAssetSelect(asset.id)}
+                      className="asset-row"
+                    >
+                      <td><AssetInfo asset={asset} /></td>
+                      <td className="amount-cell">
+                        <div className="amount-primary">{amountFormatted} {asset.ticker}</div>
+                        <div className="amount-secondary">${valueUsd}</div>
+                      </td>
+                      <td>
+                        <div className={`rate-cell ${isSupply ? 'positive-rate' : 'negative-rate'}`}>
+                          {rate}
+                        </div>
+                      </td>
+                      <td onClick={() => onAssetSelect(asset.id)} className="action-cell">
+                        {renderActionButtons(asset, actionType)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="user-dashboard">
       <h2 className="dashboard-heading">Your Dashboard</h2>
@@ -156,210 +310,19 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
         renderEmptyState()
       ) : (
         <>
-          <div className="section-content">
-            <div className="section-header">
-              <h3 className="section-title">
-                Your Deposits
-              </h3>
-              <div className={`section-total positive-total`}>
-                <FiDollarSign size={14} />
-                <span>Total: ${formatUsdValue(userPosition.total_supplied_value, 9)}</span>
-              </div>
-            </div>
-            
-            {depositedAssets.length === 0 ? (
-              <div className="empty-section">
-                You haven't deposited any assets yet.
-              </div>
-            ) : (
-              <div className="table-container">
-                <table className="assets-table">
-                  <thead className="table-header">
-                    <tr>
-                      <th>Asset</th>
-                      <th className="right-align">Deposited Amount</th>
-                      <th className="right-align">Supply Rate</th>
-                      <th className="right-align">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {depositedAssets.map(asset => {
-                      const suppliedFormatted = formatTokenAmount(asset.user_supplied_with_interest, asset.decimals);
-                      const suppliedValueUsd = formatUsdValue(
-                        tokenToUsd(asset.user_supplied_with_interest, asset.decimals, asset.price),
-                        asset.decimals
-                      );
-                      const supplyRate = formatPercentage(asset.supply_rate * 100);
-                      
-                      // Calculate withdrawable amount with constraints
-                      const availableToWithdraw = asset.withdrawable_amount < asset.market_liquidity 
-                        ? asset.withdrawable_amount 
-                        : asset.market_liquidity;
-                      
-                      return (
-                        <tr 
-                          key={asset.id} 
-                          onClick={() => onAssetSelect(asset.id)}
-                          className="asset-row"
-                        >
-                          <td>
-                            <div className="asset-info">
-                              <div className="asset-icon">
-                                {asset.ticker.charAt(0)}
-                              </div>
-                              <div>
-                                <div className="asset-name">{asset.name}</div>
-                                <div className="asset-ticker">{asset.ticker}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="amount-cell">
-                            <div className="amount-primary">{suppliedFormatted} {asset.ticker}</div>
-                            <div className="amount-secondary">${suppliedValueUsd}</div>
-                          </td>
-                          <td>
-                            <div className="rate-cell positive-rate">
-                              {supplyRate}
-                            </div>
-                          </td>
-                          <td 
-                            onClick={() => onAssetSelect(asset.id)} 
-                            className="action-cell"
-                          >
-                            <div className="action-buttons">
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openModal(asset, 'deposit');
-                                }}
-                                disabled={asset.wallet_balance === 0n}
-                                className="primary-button"
-                              >
-                                Supply
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openModal(asset, 'withdraw');
-                                }}
-                                disabled={availableToWithdraw === 0n}
-                                className="secondary-button"
-                              >
-                                Withdraw
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {renderAssetTable(
+            depositedAssets, 
+            'Your Deposits', 
+            userPosition.total_supplied_value, 
+            'supply'
+          )}
           
-          <div className="section-content">
-            <div className="section-header">
-              <h3 className="section-title">
-                Your Borrows
-              </h3>
-              <div className={`section-total negative-total`}>
-                <FiDollarSign size={14} />
-                <span>Total: ${formatUsdValue(userPosition.total_borrowed_value, 9)}</span>
-              </div>
-            </div>
-            
-            {borrowedAssets.length === 0 ? (
-              <div className="empty-section">
-                You haven't borrowed any assets yet.
-              </div>
-            ) : (
-              <div className="table-container">
-                <table className="assets-table">
-                  <thead className="table-header">
-                    <tr>
-                      <th>Asset</th>
-                      <th className="right-align">Borrowed Amount</th>
-                      <th className="right-align">Borrow Rate</th>
-                      <th className="right-align">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {borrowedAssets.map(asset => {
-                      const borrowedFormatted = formatTokenAmount(asset.user_borrowed_with_interest, asset.decimals);
-                      const borrowedValueUsd = formatUsdValue(
-                        tokenToUsd(asset.user_borrowed_with_interest, asset.decimals, asset.price),
-                        asset.decimals
-                      );
-                      const borrowRate = formatPercentage(asset.borrow_rate * 100);
-                      
-                      // Calculate borrowable amount with constraints
-                      const borrowableAmount = usdToToken(asset.borrowable_value_usd, asset.decimals, asset.price);
-                      const availableToBorrow = borrowableAmount < asset.market_liquidity ? borrowableAmount : asset.market_liquidity;
-
-                      
-                      return (
-                        <tr 
-                          key={asset.id} 
-                          onClick={() => onAssetSelect(asset.id)}
-                          className="asset-row"
-                        >
-                          <td>
-                            <div className="asset-info">
-                              <div className="asset-icon">
-                                {asset.ticker.charAt(0)}
-                              </div>
-                              <div>
-                                <div className="asset-name">{asset.name}</div>
-                                <div className="asset-ticker">{asset.ticker}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="amount-cell">
-                            <div className="amount-primary">{borrowedFormatted} {asset.ticker}</div>
-                            <div className="amount-secondary">${borrowedValueUsd}</div>
-                          </td>
-                          <td>
-                            <div className="rate-cell negative-rate">
-                              {borrowRate}
-                            </div>
-                          </td>
-                          <td 
-                            onClick={() => onAssetSelect(asset.id)} 
-                            className="action-cell"
-                          >
-                            <div className="action-buttons">
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openModal(asset, 'borrow');
-                                }}
-                                disabled={!asset.is_borrowable || availableToBorrow === 0n}
-                                title={!asset.is_borrowable ? "Asset not borrowable" : availableToBorrow === 0n ? "No assets available to borrow" : ""}
-                                className="primary-button"
-                              >
-                                Borrow
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openModal(asset, 'repay');
-                                }}
-                                disabled={asset.wallet_balance === 0n}
-                                className="secondary-button"
-                              >
-                                Repay
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {renderAssetTable(
+            borrowedAssets, 
+            'Your Borrows', 
+            userPosition.total_borrowed_value, 
+            'borrow'
+          )}
         </>
       )}
       

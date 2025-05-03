@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useLending } from '../contexts/LendingContext';
 import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
-import { tokenToUsd, usdToToken, applyLtv } from '../utils/precisionConstants';
+import { tokenToUsd, usdToToken } from '../utils/precisionConstants';
 import ActionModal from './ActionModal';
 import { FiArrowLeft, FiDollarSign, FiPercent, FiActivity, FiTrendingUp, FiLock, FiUnlock, FiLoader } from 'react-icons/fi';
+import { useTransaction } from '../hooks';
+import { AztecAddress } from '@aztec/aztec.js';
 import './AssetView.css';
 
 interface AssetViewProps {
@@ -12,24 +14,21 @@ interface AssetViewProps {
   previousView?: string;
 }
 
+type ActionType = 'deposit' | 'withdraw' | 'borrow' | 'repay';
+
 const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps) => {
-  const { assets, isLoading, depositAsset, withdrawAsset, borrowAsset, repayAsset, userPosition } = useLending();
+  const { assets, isLoading, depositAsset, withdrawAsset, borrowAsset, repayAsset } = useLending();
   
   const [modalOpen, setModalOpen] = useState(false);
-  const [actionType, setActionType] = useState<'deposit' | 'withdraw' | 'borrow' | 'repay'>('deposit');
+  const [actionType, setActionType] = useState<ActionType>('deposit');
   const [maxAmount, setMaxAmount] = useState<bigint>(0n);
 
-  const getBackButtonText = () => {
-    return `Back to ${previousView === 'dashboard' ? 'Dashboard' : 'Markets'}`;
-  };
+  const getBackButtonText = () => `Back to ${previousView === 'dashboard' ? 'Dashboard' : 'Markets'}`;
 
   if (isLoading) {
     return (
       <div className="asset-view-container">
-        <button 
-          onClick={onBack}
-          className="back-button"
-        >
+        <button onClick={onBack} className="back-button">
           <FiArrowLeft /> {getBackButtonText()}
         </button>
         
@@ -46,10 +45,7 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
   if (!asset) {
     return (
       <div className="asset-view-container">
-        <button 
-          onClick={onBack}
-          className="back-button"
-        >
+        <button onClick={onBack} className="back-button">
           <FiArrowLeft /> {getBackButtonText()}
         </button>
         
@@ -66,60 +62,145 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
   const userSuppliedUsd = tokenToUsd(asset.user_supplied_with_interest, asset.decimals, asset.price);
   const userBorrowedUsd = tokenToUsd(asset.user_borrowed_with_interest, asset.decimals, asset.price);
   
-  const ltvBps = BigInt(Math.floor(asset.loan_to_value * 10000));
   const borrowableAmount = usdToToken(asset.borrowable_value_usd, asset.decimals, asset.price);
   
   const availableToBorrow = borrowableAmount < asset.market_liquidity ? borrowableAmount : asset.market_liquidity;
   const availableToWithdraw = asset.withdrawable_amount < asset.market_liquidity ? asset.withdrawable_amount : asset.market_liquidity;
 
-  const openModal = (type: 'deposit' | 'withdraw' | 'borrow' | 'repay') => {
-    let max = 0n;
-    
+  // Calculate the maximum amount for different action types
+  const calculateMaxAmount = (type: ActionType): bigint => {
     switch (type) {
       case 'deposit':
-        // The actual max value will be updated in ActionModal component based on isPrivate
-        max = asset.wallet_balance;
-        break;
+        return asset.wallet_balance;
       case 'withdraw':
-        max = availableToWithdraw;
-        break;
+        return availableToWithdraw;
       case 'borrow':
-        max = availableToBorrow;
-        break;
+        return availableToBorrow;
       case 'repay':
-        max = asset.user_borrowed_with_interest < asset.wallet_balance ? asset.user_borrowed_with_interest : asset.wallet_balance;
-        break;
+        return asset.user_borrowed_with_interest < asset.wallet_balance 
+          ? asset.user_borrowed_with_interest 
+          : asset.wallet_balance;
+      default:
+        return 0n;
     }
-    
+  };
+
+  const openModal = (type: ActionType) => {
     setActionType(type);
-    setMaxAmount(max);
+    setMaxAmount(calculateMaxAmount(type));
     setModalOpen(true);
   };
 
-  const handleSubmit = async (amount: string, isPrivate: boolean) => {
-    switch (actionType) {
-      case 'deposit':
-        await depositAsset(asset.id, amount, isPrivate);
-        break;
-      case 'withdraw':
-        await withdrawAsset(asset.id, amount, isPrivate);
-        break;
-      case 'borrow':
-        await borrowAsset(asset.id, amount, isPrivate);
-        break;
-      case 'repay':
-        await repayAsset(asset.id, amount, isPrivate);
-        break;
-    }
+  // Map of action types to their handler functions
+  const actionHandlers = {
+    deposit: depositAsset,
+    withdraw: withdrawAsset,
+    borrow: borrowAsset,
+    repay: repayAsset
   };
+
+  const handleSubmit = async (amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: any) => {
+    const handler = actionHandlers[actionType];
+    await handler(asset.id, amount, isPrivate, privateRecipient, secret);
+  };
+
+  // Helper to render a stat card
+  const renderStatCard = (label: string, value: string, subvalue?: string, icon = <FiDollarSign size={14} />, isHighlight = false) => (
+    <div className="stat-card">
+      <div className="stat-label">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className={isHighlight ? "stat-value-highlight" : "stat-value"}>
+        {value}
+      </div>
+      {subvalue && <div className="stat-subvalue">{subvalue}</div>}
+    </div>
+  );
+
+  // Helper to render a balance with public/private toggle
+  const renderBalanceWithToggle = () => (
+    <div className="balance-container">
+      <div>
+        <div className="balance-type-label">
+          <FiUnlock size={12} />
+          <span>Public</span>
+        </div>
+        <div className="balance-value">
+          {formatTokenAmount(asset.wallet_balance, asset.decimals)} {asset.ticker}
+        </div>
+        <div className="balance-usd-value">
+          ${formatUsdValue(tokenToUsd(asset.wallet_balance, asset.decimals, asset.price), asset.decimals)}
+        </div>
+      </div>
+      
+      <div>
+        <div className="balance-type-label">
+          <FiLock size={12} />
+          <span>Private</span>
+        </div>
+        <div className="balance-value">
+          {formatTokenAmount(asset.wallet_balance_private, asset.decimals)} {asset.ticker}
+        </div>
+        <div className="balance-usd-value">
+          ${formatUsdValue(tokenToUsd(asset.wallet_balance_private, asset.decimals, asset.price), asset.decimals)}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Helper to render a basic balance
+  const renderBalance = (amount: bigint, isUsd = false) => (
+    <>
+      <div className="balance-value">
+        {isUsd 
+          ? `$${formatUsdValue(amount, asset.decimals)}`
+          : `${formatTokenAmount(amount, asset.decimals)} ${asset.ticker}`}
+      </div>
+      {!isUsd && (
+        <div className="balance-usd-value">
+          ${formatUsdValue(tokenToUsd(amount, asset.decimals, asset.price), asset.decimals)}
+        </div>
+      )}
+    </>
+  );
+
+  // Helper to render an action card
+  const renderActionCard = (
+    title: string, 
+    amount: bigint,
+    actionLabel: string,
+    actionType: ActionType,
+    isDisabled: boolean,
+    disabledReason: string,
+    isPrimary = true,
+    showToggle = false
+  ) => (
+    <div className="action-card">
+      <div>
+        <div className="card-title">{title}</div>
+        <div>
+          {showToggle ? renderBalanceWithToggle() : renderBalance(amount)}
+        </div>
+      </div>
+      
+      <button 
+        onClick={() => openModal(actionType)}
+        disabled={isDisabled}
+        title={isDisabled ? disabledReason : ""}
+        className={`action-button ${isDisabled ? '' : (isPrimary ? 'primary-gradient-button' : 'secondary-button')}`}
+      >
+        {actionLabel}
+      </button>
+    </div>
+  );
+
+  const noWalletBalance = asset.wallet_balance === 0n && asset.wallet_balance_private === 0n;
 
   return (
     <div className="asset-view-container">
       <div className="asset-header">
-        <button 
-          onClick={onBack} 
-          className="back-button"
-        >
+        <button onClick={onBack} className="back-button">
           <FiArrowLeft /> {getBackButtonText()}
         </button>
         <div className="asset-title-container">
@@ -139,207 +220,96 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
       </div>
       
       <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">
-            <FiDollarSign size={14} />
-            <span>Total Supplied</span>
-          </div>
-          <div className="stat-value">
-            {formatTokenAmount(asset.total_supplied_with_interest, asset.decimals)} {asset.ticker}
-          </div>
-          <div className="stat-subvalue">
-            ${formatUsdValue(totalSuppliedUsd, asset.decimals)}
-          </div>
-        </div>
+        {renderStatCard(
+          "Total Supplied", 
+          `${formatTokenAmount(asset.total_supplied_with_interest, asset.decimals)} ${asset.ticker}`,
+          `$${formatUsdValue(totalSuppliedUsd, asset.decimals)}`
+        )}
         
-        <div className="stat-card">
-          <div className="stat-label">
-            <FiDollarSign size={14} />
-            <span>Total Borrowed</span>
-          </div>
-          <div className="stat-value">
-            {formatTokenAmount(asset.total_borrowed_with_interest, asset.decimals)} {asset.ticker}
-          </div>
-          <div className="stat-subvalue">
-            ${formatUsdValue(totalBorrowedUsd, asset.decimals)}
-          </div>
-        </div>
+        {renderStatCard(
+          "Total Borrowed", 
+          `${formatTokenAmount(asset.total_borrowed_with_interest, asset.decimals)} ${asset.ticker}`,
+          `$${formatUsdValue(totalBorrowedUsd, asset.decimals)}`
+        )}
         
-        <div className="stat-card">
-          <div className="stat-label">
-            <FiDollarSign size={14} />
-            <span>Market Liquidity</span>
-          </div>
-          <div className="stat-value">
-            {formatTokenAmount(asset.market_liquidity, asset.decimals)} {asset.ticker}
-          </div>
-          <div className="stat-subvalue">
-            ${formatUsdValue(tokenToUsd(asset.market_liquidity, asset.decimals, asset.price), asset.decimals)}
-          </div>
-        </div>
+        {renderStatCard(
+          "Market Liquidity", 
+          `${formatTokenAmount(asset.market_liquidity, asset.decimals)} ${asset.ticker}`,
+          `$${formatUsdValue(tokenToUsd(asset.market_liquidity, asset.decimals, asset.price), asset.decimals)}`
+        )}
         
-        <div className="stat-card">
-          <div className="stat-label">
-            <FiActivity size={14} />
-            <span>Utilization Rate</span>
-          </div>
-          <div className="stat-value">
-            {formatPercentage(asset.utilization_rate * 100)}
-          </div>
-        </div>
+        {renderStatCard(
+          "Utilization Rate", 
+          formatPercentage(asset.utilization_rate * 100),
+          undefined,
+          <FiActivity size={14} />
+        )}
         
-        <div className="stat-card">
-          <div className="stat-label">
-            <FiPercent size={14} />
-            <span>Loan to Value</span>
-          </div>
-          <div className="stat-value">
-            {formatPercentage(asset.loan_to_value * 100)}
-          </div>
-        </div>
+        {renderStatCard(
+          "Loan to Value", 
+          formatPercentage(asset.loan_to_value * 100),
+          undefined,
+          <FiPercent size={14} />
+        )}
         
-        <div className="stat-card">
-          <div className="stat-label">
-            <FiTrendingUp size={14} />
-            <span>Supply Rate</span>
-          </div>
-          <div className="stat-value-highlight">
-            {formatPercentage(asset.supply_rate * 100)}
-          </div>
-        </div>
+        {renderStatCard(
+          "Supply Rate", 
+          formatPercentage(asset.supply_rate * 100),
+          undefined,
+          <FiTrendingUp size={14} />,
+          true
+        )}
         
-        <div className="stat-card">
-          <div className="stat-label">
-            <FiTrendingUp size={14} />
-            <span>Borrow Rate</span>
-          </div>
-          <div className="stat-value-highlight">
-            {formatPercentage(asset.borrow_rate * 100)}
-          </div>
-        </div>
+        {renderStatCard(
+          "Borrow Rate", 
+          formatPercentage(asset.borrow_rate * 100),
+          undefined,
+          <FiTrendingUp size={14} />,
+          true
+        )}
       </div>
       
       <div className="action-grid">
-        <div className="action-card">
-          <div>
-            <div className="card-title">
-              Wallet Balance
-            </div>
-            <div>
-              <div className="balance-container">
-                <div>
-                  <div className="balance-type-label">
-                    <FiUnlock size={12} />
-                    <span>Public</span>
-                  </div>
-                  <div className="balance-value">
-                    {formatTokenAmount(asset.wallet_balance, asset.decimals)} {asset.ticker}
-                  </div>
-                  <div className="balance-usd-value">
-                    ${formatUsdValue(tokenToUsd(asset.wallet_balance, asset.decimals, asset.price), asset.decimals)}
-                  </div>
-                </div>
-                
-                <div>
-                  <div className="balance-type-label">
-                    <FiLock size={12} />
-                    <span>Private</span>
-                  </div>
-                  <div className="balance-value">
-                    {formatTokenAmount(asset.wallet_balance_private, asset.decimals)} {asset.ticker}
-                  </div>
-                  <div className="balance-usd-value">
-                    ${formatUsdValue(tokenToUsd(asset.wallet_balance_private, asset.decimals, asset.price), asset.decimals)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <button 
-            onClick={() => openModal('deposit')}
-            disabled={asset.wallet_balance === 0n && asset.wallet_balance_private === 0n}
-            title={(asset.wallet_balance === 0n && asset.wallet_balance_private === 0n) ? "No tokens in wallet to supply" : ""}
-            className={`action-button ${(asset.wallet_balance === 0n && asset.wallet_balance_private === 0n) ? '' : 'primary-gradient-button'}`}
-          >
-            Supply
-          </button>
-        </div>
+        {renderActionCard(
+          "Wallet Balance",
+          asset.wallet_balance,
+          "Supply",
+          "deposit",
+          noWalletBalance,
+          "No tokens in wallet to supply",
+          true,
+          true // show toggle
+        )}
         
-        <div className="action-card">
-          <div>
-            <div className="card-title">
-              Your Deposits
-            </div>
-            <div>
-              <div className="balance-value">
-                {formatTokenAmount(asset.user_supplied_with_interest, asset.decimals)} {asset.ticker}
-              </div>
-              <div className="balance-usd-value">
-                ${formatUsdValue(userSuppliedUsd, asset.decimals)}
-              </div>
-            </div>
-          </div>
-          
-          <button 
-            onClick={() => openModal('withdraw')}
-            disabled={availableToWithdraw === 0n}
-            title={availableToWithdraw === 0n ? "No funds available to withdraw" : ""}
-            className={`action-button ${availableToWithdraw === 0n ? '' : 'secondary-button'}`}
-          >
-            Withdraw
-          </button>
-        </div>
+        {renderActionCard(
+          "Your Deposits",
+          asset.user_supplied_with_interest,
+          "Withdraw",
+          "withdraw",
+          availableToWithdraw === 0n,
+          "No funds available to withdraw",
+          false
+        )}
         
-        <div className="action-card">
-          <div>
-            <div className="card-title">
-              Available to Borrow
-            </div>
-            <div>
-              <div className="balance-value">
-                {formatTokenAmount(availableToBorrow, asset.decimals)} {asset.ticker}
-              </div>
-              <div className="balance-usd-value">
-                ${formatUsdValue(tokenToUsd(availableToBorrow, asset.decimals, asset.price), asset.decimals)}
-              </div>
-            </div>
-          </div>
-          
-          <button 
-            onClick={() => openModal('borrow')}
-            disabled={!asset.is_borrowable || availableToBorrow === 0n}
-            title={!asset.is_borrowable ? "Asset not borrowable" : availableToBorrow === 0n ? "No assets available to borrow" : ""}
-            className={`action-button ${(!asset.is_borrowable || availableToBorrow === 0n) ? '' : 'primary-gradient-button'}`}
-          >
-            Borrow
-          </button>
-        </div>
+        {renderActionCard(
+          "Available to Borrow",
+          availableToBorrow,
+          "Borrow",
+          "borrow",
+          !asset.is_borrowable || availableToBorrow === 0n,
+          !asset.is_borrowable ? "Asset not borrowable" : "No assets available to borrow",
+          true
+        )}
         
-        <div className="action-card">
-          <div>
-            <div className="card-title">
-              Your Borrows
-            </div>
-            <div>
-              <div className="balance-value">
-                {formatTokenAmount(asset.user_borrowed_with_interest, asset.decimals)} {asset.ticker}
-              </div>
-              <div className="balance-usd-value">
-                ${formatUsdValue(userBorrowedUsd, asset.decimals)}
-              </div>
-            </div>
-          </div>
-          
-          <button 
-            onClick={() => openModal('repay')}
-            disabled={asset.user_borrowed_with_interest === 0n || (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n)}
-            title={asset.user_borrowed_with_interest === 0n ? "No outstanding debt to repay" : (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n) ? "No tokens in wallet to repay with" : ""}
-            className={`action-button ${(asset.user_borrowed_with_interest === 0n || (asset.wallet_balance === 0n && asset.wallet_balance_private === 0n)) ? '' : 'secondary-button'}`}
-          >
-            Repay
-          </button>
-        </div>
+        {renderActionCard(
+          "Your Borrows",
+          asset.user_borrowed_with_interest,
+          "Repay",
+          "repay",
+          asset.user_borrowed_with_interest === 0n || noWalletBalance,
+          asset.user_borrowed_with_interest === 0n ? "No outstanding debt to repay" : "No tokens in wallet to repay with",
+          false
+        )}
       </div>
       
       {modalOpen && (
