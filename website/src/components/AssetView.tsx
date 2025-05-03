@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLending } from '../contexts/LendingContext';
 import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
 import { tokenToUsd, usdToToken } from '../utils/precisionConstants';
@@ -18,6 +18,7 @@ type ActionType = 'deposit' | 'withdraw' | 'borrow' | 'repay';
 
 const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps) => {
   const { assets, isLoading, depositAsset, withdrawAsset, borrowAsset, repayAsset } = useLending();
+  const [lastFoundAsset, setLastFoundAsset] = useState<any>(null);
   
   const [modalOpen, setModalOpen] = useState(false);
   const [actionType, setActionType] = useState<ActionType>('deposit');
@@ -25,7 +26,16 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
 
   const getBackButtonText = () => `Back to ${previousView === 'dashboard' ? 'Dashboard' : 'Markets'}`;
 
-  if (isLoading) {
+  // Store the last found asset to prevent flickering during transitions
+  useEffect(() => {
+    const foundAsset = assets.find(a => a.id === assetId);
+    if (foundAsset) {
+      setLastFoundAsset(foundAsset);
+    }
+  }, [assets, assetId]);
+
+  // True loading state - first load with no previous data
+  if (isLoading && assets.length === 0 && !lastFoundAsset) {
     return (
       <div className="asset-view-container">
         <button onClick={onBack} className="back-button">
@@ -40,7 +50,8 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
     );
   }
 
-  const asset = assets.find(a => a.id === assetId);
+  // Get current asset from assets or use the last found asset during transitions
+  const asset = assets.find(a => a.id === assetId) || lastFoundAsset;
   
   if (!asset) {
     return (
@@ -84,6 +95,9 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
         return 0n;
     }
   };
+
+  // Show loading indicator overlay when refreshing data for an already loaded asset
+  const showLoadingOverlay = isLoading && asset !== undefined;
 
   const openModal = (type: ActionType) => {
     setActionType(type);
@@ -199,6 +213,13 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
 
   return (
     <div className="asset-view-container">
+      {showLoadingOverlay && (
+        <div className="loading-overlay">
+          <FiLoader className="spinning" />
+          <span>Refreshing asset data...</span>
+        </div>
+      )}
+      
       <div className="asset-header">
         <button onClick={onBack} className="back-button">
           <FiArrowLeft /> {getBackButtonText()}
@@ -253,7 +274,7 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
         )}
         
         {renderStatCard(
-          "Supply Rate", 
+          "Supply APY", 
           formatPercentage(asset.supply_rate * 100),
           undefined,
           <FiTrendingUp size={14} />,
@@ -261,7 +282,7 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
         )}
         
         {renderStatCard(
-          "Borrow Rate", 
+          "Borrow APY", 
           formatPercentage(asset.borrow_rate * 100),
           undefined,
           <FiTrendingUp size={14} />,
@@ -269,45 +290,49 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
         )}
       </div>
       
-      <div className="action-grid">
+      <h2 className="section-title">Your Position</h2>
+      
+      <div className="position-grid">
         {renderActionCard(
-          "Wallet Balance",
-          asset.wallet_balance,
-          "Supply",
+          "Your Wallet Balance", 
+          asset.wallet_balance + asset.wallet_balance_private,
+          "Deposit",
           "deposit",
           noWalletBalance,
-          "No tokens in wallet to supply",
+          "No balance available to deposit",
           true,
-          true // show toggle
+          true // Show balance toggle
         )}
         
         {renderActionCard(
-          "Your Deposits",
+          "Your Supplied", 
           asset.user_supplied_with_interest,
           "Withdraw",
           "withdraw",
-          availableToWithdraw === 0n,
-          "No funds available to withdraw",
+          asset.user_supplied_with_interest === 0n,
+          "No balance to withdraw",
           false
         )}
         
         {renderActionCard(
-          "Available to Borrow",
+          "Available to Borrow", 
           availableToBorrow,
           "Borrow",
           "borrow",
           !asset.is_borrowable || availableToBorrow === 0n,
-          !asset.is_borrowable ? "Asset not borrowable" : "No assets available to borrow",
+          !asset.is_borrowable 
+            ? "Asset is not borrowable"
+            : "No borrow capacity available",
           true
         )}
         
         {renderActionCard(
-          "Your Borrows",
+          "Your Borrowed", 
           asset.user_borrowed_with_interest,
           "Repay",
           "repay",
-          asset.user_borrowed_with_interest === 0n || noWalletBalance,
-          asset.user_borrowed_with_interest === 0n ? "No outstanding debt to repay" : "No tokens in wallet to repay with",
+          asset.user_borrowed_with_interest === 0n,
+          "No debt to repay",
           false
         )}
       </div>
@@ -316,10 +341,10 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
         <ActionModal
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
+          onSubmit={handleSubmit}
           asset={asset}
           actionType={actionType}
           maxAmount={maxAmount}
-          onSubmit={handleSubmit}
         />
       )}
     </div>

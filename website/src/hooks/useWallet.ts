@@ -9,8 +9,10 @@ import { AztecAddress, AccountWalletWithSecretKey } from '@aztec/aztec.js';
 export function useWallet(): { 
   wallet: AccountWalletWithSecretKey | undefined; 
   address: AztecAddress | undefined;
+  selectedAddress: AztecAddress | undefined;
+  setSelectedAddress: (address: AztecAddress) => void;
   isLoading: boolean 
 } {
-  const { wallet, address, isLoading } = useContext(WalletContext);
-  return { wallet, address, isLoading };
+  const { wallet, address, selectedAddress, setSelectedAddress, isLoading } = useContext(WalletContext);
+  return { wallet, address, selectedAddress, setSelectedAddress, isLoading };
 } 

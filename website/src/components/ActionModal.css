@@ -323,7 +323,7 @@ input:checked + .toggle-slider:before {
 .default-button {
   background-color: #363952;
   color: #ffffff;
-}
+} 
 
 .private-address-section {
   margin-top: 16px;

@@ -4,6 +4,7 @@
   min-height: 100%;
   width: 100%;
   padding-bottom: 1rem;
+  position: relative;
 }
 
 .asset-header {
@@ -146,6 +147,51 @@
   width: 100%;
 }
 
+/* Position grid styles - renamed from action-grid */
+.position-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: white;
+  margin: 1.5rem 0 0.5rem 0;
+}
+
+/* Loading overlay styles */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(23, 25, 36, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+  border-radius: 0.75rem;
+  gap: 1rem;
+}
+
+.loading-overlay .spinning {
+  font-size: 2rem;
+  color: #8a8dff;
+  animation: spin 1s linear infinite; 
+}
+
+.loading-overlay span {
+  color: #d9fbff;
+  font-weight: 500;
+}
+
 .action-card {
   padding: 0.75rem;
   border-radius: 0.75rem;
@@ -156,6 +202,7 @@
   flex-direction: column;
   justify-content: space-between;
   height: 100%;
+  min-height: 150px;
 }
 
 .card-title {
@@ -255,4 +302,17 @@
 
 .spinning {
   animation: spin 1s linear infinite;
+}
+
+/* Add responsive adjustments for smaller screens */
+@media (max-width: 1200px) {
+  .position-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .position-grid {
+    grid-template-columns: 1fr;
+  }
 } 

@@ -5,16 +5,20 @@ import { getInitialTestAccountsWallets } from '@aztec/accounts/testing';
 interface WalletContextType {
   wallet: AccountWalletWithSecretKey | undefined;
   address: AztecAddress | undefined;
+  selectedAddress: AztecAddress | undefined;
   availableWallets: AccountWalletWithSecretKey[];
   switchWallet: (walletIndex: number) => void;
+  setSelectedAddress: (address: AztecAddress) => void;
   isLoading: boolean;
 }
 
 const initialWalletContext: WalletContextType = {
   wallet: undefined,
   address: undefined,
+  selectedAddress: undefined,
   availableWallets: [],
   switchWallet: () => {},
+  setSelectedAddress: () => {},
   isLoading: true,
 };
 
@@ -28,6 +32,7 @@ interface WalletProviderProps {
 export const WalletProvider = ({ children, pxeUrl }: WalletProviderProps) => {
   const [wallet, setWallet] = useState<AccountWalletWithSecretKey>();
   const [address, setAddress] = useState<AztecAddress>();
+  const [selectedAddress, setSelectedAddress] = useState<AztecAddress>();
   const [availableWallets, setAvailableWallets] = useState<AccountWalletWithSecretKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -46,6 +51,7 @@ export const WalletProvider = ({ children, pxeUrl }: WalletProviderProps) => {
 
         setWallet(defaultWallet);
         setAddress(defaultAddress);
+        setSelectedAddress(defaultAddress); // Initialize selected address as the default public address
       } catch (error) {
         console.error('Failed to initialize wallet:', error);
       } finally {
@@ -59,15 +65,25 @@ export const WalletProvider = ({ children, pxeUrl }: WalletProviderProps) => {
   const switchWallet = (walletIndex: number) => {
     if (walletIndex >= 0 && walletIndex < availableWallets.length) {
       const selectedWallet = availableWallets[walletIndex];
+      const newAddress = selectedWallet.getAddress();
       setWallet(selectedWallet);
-      setAddress(selectedWallet.getAddress());
+      setAddress(newAddress);
+      setSelectedAddress(newAddress); // Update selected address when wallet changes
     } else {
       console.error(`Invalid wallet index: ${walletIndex}. Available wallets: ${availableWallets.length}`);
     }
   };
 
   return (
-    <WalletContext.Provider value={{ wallet, address, availableWallets, switchWallet, isLoading }}>
+    <WalletContext.Provider value={{ 
+      wallet, 
+      address, 
+      selectedAddress,
+      availableWallets, 
+      switchWallet, 
+      setSelectedAddress,
+      isLoading 
+    }}>
       {children}
     </WalletContext.Provider>
   );

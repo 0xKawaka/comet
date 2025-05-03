@@ -108,6 +108,6 @@ export function useTransaction() {
     removePrivateAddress,
     clearAllPrivateAddresses,
     refreshAddresses,
-    isLoadingPrivateAddresses: isLoading
+    isProcessingPrivateAddresses: isLoading
   };
 } 

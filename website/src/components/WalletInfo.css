@@ -1,24 +1,21 @@
-.wallet-info-loading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #9fa1b2;
-}
-
-.wallet-info-loader {
-  animation: spin 1s linear infinite;
-}
-
 .wallet-info-container {
   display: flex;
   align-items: center;
 }
 
+.wallet-info-loading {
+  display: flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+}
+
+.wallet-info-loader {
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 } 

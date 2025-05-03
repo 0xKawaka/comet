@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import { WalletProvider } from './contexts/WalletContext';
+import { LendingProvider } from './contexts/LendingContext';
+import { TransactionProvider } from './contexts/TransactionContext';
 import WalletInfo from './components/WalletInfo';
 import HealthFactorIndicator from './components/HealthFactorIndicator';
 import MarketsView from './components/MarketsView';
 import UserDashboardView from './components/UserDashboardView';
 import AssetView from './components/AssetView';
 import logo from './assets/logo.png';
-import { FiGlobe, FiUser, FiChevronLeft } from 'react-icons/fi';
+import { FiGlobe, FiUser } from 'react-icons/fi';
 import './App.css';
 
 const PXE_URL = import.meta.env.VITE_PXE_URL || 'http://localhost:8080';
 
-function App() {
+function AppContent() {
   const [currentView, setCurrentView] = useState('markets');
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
   const [previousView, setPreviousView] = useState('markets');
@@ -97,6 +99,18 @@ function App() {
         </main>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <WalletProvider pxeUrl={PXE_URL}>
+      <TransactionProvider>
+        <LendingProvider>
+          <AppContent />
+        </LendingProvider>
+      </TransactionProvider>
+    </WalletProvider>
   );
 }
 

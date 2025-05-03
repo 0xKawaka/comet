@@ -185,7 +185,7 @@ interface LendingProviderProps {
 }
 
 export const LendingProvider = ({ children }: LendingProviderProps) => {
-  const { wallet, address } = useWallet();
+  const { wallet, address, selectedAddress } = useWallet();
   const { 
     depositAsset: txDepositAsset, 
     withdrawAsset: txWithdrawAsset, 
@@ -196,6 +196,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [lendingContract, setLendingContract] = useState<LendingContract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false); // New state to track when we're refreshing (vs. initial loading)
   const [userPosition, setUserPosition] = useState<UserPosition>({
     health_factor: Infinity,
     total_supplied_value: 0n,
@@ -203,11 +204,27 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   });
   // Store current assets in a ref to access from the interval without dependencies
   const assetsRef = useRef<Asset[]>([]);
+  // Add a ref to track the current selected address for fetch operations
+  const currentAddressRef = useRef<AztecAddress | undefined>(undefined);
+  // Add a ref to track the current abort controller for cancelling in-progress fetches
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   // Update assets ref whenever assets change
   useEffect(() => {
     assetsRef.current = assets;
   }, [assets]);
+
+  // Update the address ref whenever selectedAddress changes
+  useEffect(() => {
+    // Abort any previous fetch when address changes
+    if (abortControllerRef.current) {
+      console.log("Aborting previous fetch due to address change");
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
+    currentAddressRef.current = selectedAddress;
+  }, [selectedAddress]);
 
   useEffect(() => {
     if (wallet && address) {
@@ -215,13 +232,13 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     }
   }, [wallet, address]);
 
-  // Add a new useEffect to refresh data when address changes
+  // Add a new useEffect to refresh data when selectedAddress changes
   useEffect(() => {
-    if (address && lendingContract) {
-      // Refresh market data when the address changes
+    if (selectedAddress && lendingContract) {
+      // Refresh market data when the selected address changes
       refreshData();
     }
-  }, [address]);
+  }, [selectedAddress, lendingContract]);
 
   // Add new useEffect for the interval to update interest accruals
   useEffect(() => {
@@ -388,9 +405,18 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     };
   };
 
-  // Helper function to fetch all asset data
-  const fetchAssetData = async (contract: LendingContract): Promise<Asset[]> => {
-    if (!wallet || !address) return [];
+  // Helper function to fetch all asset data - modified to use selectedAddress
+  const fetchAssetData = async (contract: LendingContract, signal?: AbortSignal): Promise<Asset[]> => {
+    // Check that wallet is available and we have a current address reference
+    if (!wallet || !currentAddressRef.current) return [];
+    
+    // Use the captured reference address for consistent fetching
+    const currentAddress = currentAddressRef.current;
+    
+    // Check for abort before starting
+    if (signal?.aborted) {
+      throw new DOMException("Fetch aborted", "AbortError");
+    }
     
     // Parse asset metadata from JSON
     const assetsData = allAssets as Record<string, AssetMetadata>;
@@ -410,20 +436,41 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       Promise.all(priceFeedPromises)
     ]);
     
+    // Check for abort after contract initialization
+    if (signal?.aborted) {
+      throw new DOMException("Fetch aborted", "AbortError");
+    }
+    
+    // Check if the address has changed during contract initialization
+    if (!currentAddressRef.current || !currentAddress.equals(currentAddressRef.current)) {
+      console.log("Address changed during contract initialization, aborting fetch");
+      return [];
+    }
+    
     // For each asset, prepare all data fetch promises
     const assetDataPromises = assetEntries.map(async ([id, data], index) => {
+      // Check for abort before each asset fetch
+      if (signal?.aborted) {
+        return null;
+      }
+      
       const assetAddress = assetAddresses[index];
       const tokenContract = tokenContracts[index];
       const priceFeedContract = priceFeedContracts[index];
       
+      // Verify the address hasn't changed before each asset fetch
+      if (!currentAddressRef.current || !currentAddress.equals(currentAddressRef.current)) {
+        return null; // Will be filtered out later
+      }
+      
       // Bundle all the async calls for this asset
       return Promise.all([
-        // Get wallet balances
-        tokenContract.methods.balance_of_public(address).simulate(),
-        tokenContract.methods.balance_of_private(address).simulate(),
+        // Get wallet balances - use currentAddress
+        tokenContract.methods.balance_of_public(currentAddress).simulate(),
+        tokenContract.methods.balance_of_private(currentAddress).simulate(),
         
-        // Get user position
-        contract.methods.get_position(address, marketId, assetAddress).simulate(),
+        // Get user position - use currentAddress
+        contract.methods.get_position(currentAddress, marketId, assetAddress).simulate(),
         
         // Get total supplied and borrowed
         contract.methods.get_total_deposited_assets(marketId, assetAddress).simulate(),
@@ -444,8 +491,27 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       ]);
     });
     
+    // Check for abort before waiting for asset data
+    if (signal?.aborted) {
+      throw new DOMException("Fetch aborted", "AbortError");
+    }
+    
     // Wait for all asset data to be fetched
-    const assetsResults = await Promise.all(assetDataPromises);
+    const assetResultsWithNulls = await Promise.all(assetDataPromises);
+    
+    // Check for abort after asset data fetch
+    if (signal?.aborted) {
+      throw new DOMException("Fetch aborted", "AbortError");
+    }
+    
+    // Filter out any null results from address changes
+    const assetsResults = assetResultsWithNulls.filter(result => result !== null) as any[];
+    
+    // Final check - if address changed during any of the fetches, return empty array
+    if (!currentAddressRef.current || !currentAddress.equals(currentAddressRef.current)) {
+      console.log("Address changed during data fetching, aborting");
+      return [];
+    }
     
     // Process results into Asset objects
     return assetsResults.map(result => {
@@ -580,9 +646,9 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     });
   };
 
-  // Helper function to validate common transaction requirements
+  // Helper function to validate common transaction requirements - modified to use selectedAddress
   const validateTransaction = (assetId: string): Asset => {
-    if (!lendingContract || !wallet || !address) {
+    if (!lendingContract || !wallet || !selectedAddress) {
       throw new Error("Wallet or lending contract not initialized");
     }
     
@@ -701,23 +767,90 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   };
 
   const refreshData = async () => {
-    if (!wallet || !address || !lendingContract) return;
+    if (!wallet || !selectedAddress || !lendingContract) return;
     
-    setIsLoading(true);
+    // Abort any previous fetch operation
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create a new abort controller for this fetch operation
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    
+    // Store the address we're currently fetching for
+    const fetchingForAddress = selectedAddress;
+    // Update the reference to the current address
+    currentAddressRef.current = fetchingForAddress;
+    
+    // Only set isLoading if we don't have any assets yet (initial load)
+    // Otherwise use isRefreshing to indicate data is being updated
+    if (assets.length === 0) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+    
     try {
-      // Fetch all asset data
-      const assetsArray = await fetchAssetData(lendingContract);
+      // Check if the operation was aborted before we even started
+      if (abortController.signal.aborted) {
+        console.log("Fetch operation aborted before it started");
+        return;
+      }
       
-      // Update state with processed assets
-      setAssets(assetsArray);
+      // Only clear assets on initial load, not during address switches
+      // This prevents the "Asset not found" flash during address switching
+      if (assets.length === 0) {
+        setAssets([]);
+        setUserPosition({
+          health_factor: Infinity,
+          total_supplied_value: 0n,
+          total_borrowed_value: 0n
+        });
+      }
       
-      // Calculate user position metrics
-      updateUserPosition(assetsArray);
+      // Fetch all asset data using the captured selectedAddress and abort signal
+      const assetsArray = await fetchAssetData(lendingContract, abortController.signal);
       
+      // Check if the operation was aborted during fetching
+      if (abortController.signal.aborted) {
+        console.log("Fetch operation aborted during execution");
+        return;
+      }
+      
+      // Check if the address we're fetching for is still the current selected address
+      // If not, the data is stale and should be discarded - a new fetch will be triggered
+      if (currentAddressRef.current && fetchingForAddress.equals(currentAddressRef.current)) {
+        // Update state with processed assets
+        setAssets(assetsArray);
+        
+        // Calculate user position metrics
+        updateUserPosition(assetsArray);
+      } else {
+        // Address changed during fetch, discard results
+        console.log("Address changed during data fetch, discarding results");
+      }
     } catch (error) {
-      console.error("Failed to refresh lending data:", error);
+      // Don't report errors for aborted operations
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log("Fetch operation aborted:", error.message);
+      } else {
+        console.error("Failed to refresh lending data:", error);
+      }
     } finally {
-      setIsLoading(false);
+      // Clear the abort controller reference if it's still the same one
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
+      
+      // Only set loading/refreshing to false if we're still fetching for the same address
+      // and the operation wasn't aborted
+      if (!abortController.signal.aborted && 
+          currentAddressRef.current && 
+          fetchingForAddress.equals(currentAddressRef.current)) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   };
 
@@ -727,7 +860,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         assets,
         userPosition,
         lendingContract,
-        isLoading,
+        isLoading: isLoading || isRefreshing, // Combine both loading states for consumers
         depositAsset,
         withdrawAsset,
         borrowAsset,

@@ -32,18 +32,21 @@ const ActionModal = ({
   asset, 
   actionType, 
   maxAmount,
-  onSubmit
+  onSubmit 
 }: ActionModalProps) => {
   const { address: userAddress } = useWallet();
-  const { privateAddresses, refreshAddresses } = useTransaction();
+  const { privateAddresses, refreshAddresses, isProcessing: isTransactionProcessing } = useTransaction();
   
   const [amount, setAmount] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLocalSubmitting, setIsLocalSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentMaxAmount, setCurrentMaxAmount] = useState<bigint>(maxAmount);
   const [selectedPrivateAddress, setSelectedPrivateAddress] = useState<typeof privateAddresses[0] | null>(null);
   const [showNewSecretOption, setShowNewSecretOption] = useState(false);
+
+  // Combined processing state from both local component and TransactionContext
+  const isSubmitting = isLocalSubmitting || isTransactionProcessing;
 
   // Refresh the private addresses list when modal is opened
   useEffect(() => {
@@ -69,6 +72,17 @@ const ActionModal = ({
     }
   }, [isPrivate]);
 
+  // Close modal when transaction completes
+  useEffect(() => {
+    if (!isTransactionProcessing && isLocalSubmitting) {
+      // Transaction has completed
+      setIsLocalSubmitting(false);
+      setAmount('');
+      // Close the modal to let the data refresh UI show
+      onClose();
+    }
+  }, [isTransactionProcessing, isLocalSubmitting, onClose]);
+
   if (!isOpen) return null;
 
   const handleSetMax = () => {
@@ -90,7 +104,7 @@ const ActionModal = ({
     }
 
     setError(null);
-    setIsSubmitting(true);
+    setIsLocalSubmitting(true);
     
     try {
       // Determine what to pass to onSubmit based on privacy settings
@@ -117,13 +131,12 @@ const ActionModal = ({
       }
       
       await onSubmit(amount, isPrivate, recipient, secretValue);
-      onClose();
-      setAmount('');
+      // Do not close the modal here - we'll let the useEffect do it when isTransactionProcessing becomes false
+      // This ensures proper transition to data refresh UI
     } catch (error) {
       console.error(`Error during ${actionType}:`, error);
       setError(`Transaction failed. ${error instanceof Error ? error.message : 'Please try again.'}`);
-    } finally {
-      setIsSubmitting(false);
+      setIsLocalSubmitting(false);
     }
   };
 
@@ -200,6 +213,7 @@ const ActionModal = ({
           <button 
             className="close-button"
             onClick={onClose}
+            disabled={isSubmitting}
           >
             &times;
           </button>
@@ -250,22 +264,18 @@ const ActionModal = ({
           </div>
           
           <div className="privacy-toggle-container">
-            <span className="privacy-label">Private Transaction</span>
-            <div className="privacy-toggle-wrapper">
-              <span className={`privacy-status ${isPrivate ? 'privacy-status-on' : 'privacy-status-off'}`}>
-                {isPrivate ? 'ON' : 'OFF'}
-              </span>
-              <label className={`toggle-switch ${isSubmitting ? 'toggle-switch-disabled' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={isPrivate}
-                  onChange={() => setIsPrivate(!isPrivate)}
-                  disabled={isSubmitting}
-                />
-                <span className={`toggle-slider ${isSubmitting ? 'toggle-slider-disabled' : ''}`}>
-                </span>
-              </label>
+            <div className="toggle-label">
+              Make this transaction private
             </div>
+            <label className="toggle-switch">
+              <input 
+                type="checkbox" 
+                checked={isPrivate} 
+                onChange={() => setIsPrivate(!isPrivate)}
+                disabled={isSubmitting}
+              />
+              <span className="toggle-slider"></span>
+            </label>
           </div>
           
           {renderPrivateAddressOptions()}
@@ -287,10 +297,10 @@ const ActionModal = ({
           </button>
           <button 
             onClick={handleSubmit}
-            disabled={isSubmitting || !amount || parseFloat(amount) <= 0}
+            disabled={!amount || parseFloat(amount) <= 0 || currentMaxAmount === 0n || isSubmitting}
             className="action-button-modal"
           >
-            {isSubmitting ? 'Processing...' : getActionTitle()}
+            {isSubmitting ? "Processing..." : getActionTitle()}
           </button>
         </div>
       </div>

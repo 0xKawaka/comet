@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLending, Asset } from '../contexts/LendingContext';
 import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
 import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR } from '../utils/precisionConstants';
@@ -38,22 +38,47 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
     actionType: ActionType;
     maxAmount: bigint;
   } | null>(null);
+  
+  const [lastAssets, setLastAssets] = useState<Asset[]>([]);
+  const [lastUserPosition, setLastUserPosition] = useState<typeof userPosition | null>(null);
 
-  if (isLoading) {
+  // Store the last loaded assets and position to prevent flickering during transitions
+  useEffect(() => {
+    if (assets.length > 0) {
+      setLastAssets(assets);
+    }
+    if (userPosition) {
+      setLastUserPosition(userPosition);
+    }
+  }, [assets, userPosition]);
+
+  // True loading state - first load with no previous data
+  if (isLoading && assets.length === 0 && lastAssets.length === 0) {
     return (
-      <div className="loading-container">
+      <div className="dashboard-container">
         <h2 className="dashboard-heading">Your Dashboard</h2>
-        <div className="loading-text">
-          <FiLoader className="loading-icon" />
+        <div className="loading-container">
+          <FiLoader className="spinning" />
           <span>Loading your positions...</span>
         </div>
       </div>
     );
   }
 
+  // Use cached data during refreshes
+  const displayAssets = assets.length > 0 ? assets : lastAssets;
+  const displayUserPosition = userPosition && userPosition.total_supplied_value > 0n
+    ? userPosition
+    : lastUserPosition && lastUserPosition.total_supplied_value > 0n
+      ? lastUserPosition
+      : userPosition;
+  
+  // Show loading overlay during refreshes
+  const showLoadingOverlay = isLoading && displayAssets.length > 0;
+
   // Filter assets where user has deposited or borrowed
-  const depositedAssets = assets.filter(asset => asset.user_supplied_with_interest > 0n);
-  const borrowedAssets = assets.filter(asset => asset.user_borrowed_with_interest > 0n);
+  const depositedAssets = displayAssets.filter(asset => asset.user_supplied_with_interest > 0n);
+  const borrowedAssets = displayAssets.filter(asset => asset.user_borrowed_with_interest > 0n);
 
   // Calculate the maximum amount for different action types
   const calculateMaxAmount = (asset: Asset, actionType: ActionType): bigint => {
@@ -112,7 +137,9 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
   };
 
   const renderHealthFactor = () => {
-    const healthFactor = userPosition.health_factor;
+    if (!displayUserPosition) return null;
+    
+    const healthFactor = displayUserPosition.health_factor;
     
     return (
       <div className="position-overview">
@@ -136,7 +163,7 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
               <span>Total Supplied</span>
             </div>
             <div className="metric-value-positive">
-              ${formatUsdValue(userPosition.total_supplied_value, 9)}
+              ${formatUsdValue(displayUserPosition.total_supplied_value, 9)}
             </div>
           </div>
           
@@ -146,7 +173,7 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
               <span>Total Borrowed</span>
             </div>
             <div className="metric-value-negative">
-              ${formatUsdValue(userPosition.total_borrowed_value, 9)}
+              ${formatUsdValue(displayUserPosition.total_borrowed_value, 9)}
             </div>
           </div>
         </div>
@@ -248,92 +275,103 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
         
         {assets.length === 0 ? (
           <div className="empty-section">
-            You haven't {isSupply ? 'deposited' : 'borrowed'} any assets yet.
+            No {isSupply ? 'supplied' : 'borrowed'} assets.
           </div>
         ) : (
-          <div className="table-container">
-            <table className="assets-table">
-              <thead className="table-header">
-                <tr>
-                  <th>Asset</th>
-                  <th className="right-align">{isSupply ? 'Deposited' : 'Borrowed'} Amount</th>
-                  <th className="right-align">{isSupply ? 'Supply' : 'Borrow'} Rate</th>
-                  <th className="right-align">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assets.map(asset => {
-                  const amountFormatted = formatTokenAmount(asset[valueKey], asset.decimals);
-                  const valueUsd = formatUsdValue(
-                    tokenToUsd(asset[valueKey], asset.decimals, asset.price),
-                    asset.decimals
-                  );
-                  const rate = formatPercentage(asset[rateKey] * 100);
-                  
-                  return (
-                    <tr 
-                      key={asset.id} 
-                      onClick={() => onAssetSelect(asset.id)}
-                      className="asset-row"
-                    >
-                      <td><AssetInfo asset={asset} /></td>
-                      <td className="amount-cell">
-                        <div className="amount-primary">{amountFormatted} {asset.ticker}</div>
-                        <div className="amount-secondary">${valueUsd}</div>
-                      </td>
-                      <td>
-                        <div className={`rate-cell ${isSupply ? 'positive-rate' : 'negative-rate'}`}>
-                          {rate}
-                        </div>
-                      </td>
-                      <td onClick={() => onAssetSelect(asset.id)} className="action-cell">
-                        {renderActionButtons(asset, actionType)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <table className="asset-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th className="right">Balance</th>
+                <th className="right">{isSupply ? 'Supply APY' : 'Borrow APY'}</th>
+                <th className="right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {assets.map(asset => {
+                const tokenValue = asset[valueKey];
+                const usdValue = tokenToUsd(tokenValue, asset.decimals, asset.price);
+                const apy = formatPercentage(asset[rateKey] * 100);
+                
+                return (
+                  <tr 
+                    key={asset.id}
+                    onClick={() => onAssetSelect(asset.id)}
+                    className="asset-row"
+                  >
+                    <td>
+                      <AssetInfo asset={asset} />
+                    </td>
+                    <td className="right">
+                      <div className="token-value">
+                        {formatTokenAmount(tokenValue, asset.decimals)} {asset.ticker}
+                      </div>
+                      <div className="usd-value">
+                        ${formatUsdValue(usdValue, asset.decimals)}
+                      </div>
+                    </td>
+                    <td className="right">
+                      <div className="apy-display">
+                        <FiTrendingUp size={14} />
+                        <span>{apy}</span>
+                      </div>
+                    </td>
+                    <td className="right action-cell">
+                      {renderActionButtons(asset, actionType)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     );
   };
 
+  const hasPosition = depositedAssets.length > 0 || borrowedAssets.length > 0;
+
   return (
-    <div className="user-dashboard">
+    <div className="dashboard-container">
+      {showLoadingOverlay && (
+        <div className="loading-overlay">
+          <FiLoader className="spinning" />
+          <span>Refreshing your positions...</span>
+        </div>
+      )}
+      
       <h2 className="dashboard-heading">Your Dashboard</h2>
       
-      {userPosition.total_borrowed_value > 0 && renderHealthFactor()}
-      
-      {depositedAssets.length === 0 && borrowedAssets.length === 0 ? (
-        renderEmptyState()
-      ) : (
+      {hasPosition ? (
         <>
+          {renderHealthFactor()}
+          
           {renderAssetTable(
-            depositedAssets, 
-            'Your Deposits', 
-            userPosition.total_supplied_value, 
+            depositedAssets,
+            "Your Supplied Assets",
+            displayUserPosition?.total_supplied_value || 0n,
             'supply'
           )}
           
           {renderAssetTable(
-            borrowedAssets, 
-            'Your Borrows', 
-            userPosition.total_borrowed_value, 
+            borrowedAssets,
+            "Your Borrowed Assets",
+            displayUserPosition?.total_borrowed_value || 0n,
             'borrow'
           )}
         </>
+      ) : (
+        renderEmptyState()
       )}
       
       {modalOpen && modalConfig && (
         <ActionModal
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
+          onSubmit={handleSubmit}
           asset={modalConfig.asset}
           actionType={modalConfig.actionType}
           maxAmount={modalConfig.maxAmount}
-          onSubmit={handleSubmit}
         />
       )}
     </div>

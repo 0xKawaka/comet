@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useLending } from '../contexts/LendingContext';
 import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
 import { tokenToUsd } from '../utils/precisionConstants';
@@ -10,24 +11,39 @@ interface MarketsViewProps {
 
 const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
   const { assets, isLoading } = useLending();
+  const [lastLoadedAssets, setLastLoadedAssets] = useState<any[]>([]);
 
-  if (isLoading) {
+  // Store the last loaded assets to prevent flickering during transitions
+  useEffect(() => {
+    if (assets.length > 0) {
+      setLastLoadedAssets(assets);
+    }
+  }, [assets]);
+
+  // True loading state - first load with no previous data
+  if (isLoading && assets.length === 0 && lastLoadedAssets.length === 0) {
     return (
       <div className="markets-container">
-        <h2 className="markets-title">Markets</h2>
-        <div className="markets-loading">
-          <FiLoader className="markets-loader" />
+        <div className="markets-title">Markets</div>
+        <div className="loading-container">
+          <FiLoader className="spinning" />
           <span>Loading market data...</span>
         </div>
       </div>
     );
   }
 
-  if (assets.length === 0) {
+  // Use cached assets during refreshes
+  const displayAssets = assets.length > 0 ? assets : lastLoadedAssets;
+  
+  // Show loading overlay during refreshes
+  const showLoadingOverlay = isLoading && displayAssets.length > 0;
+
+  if (displayAssets.length === 0) {
     return (
       <div className="markets-container">
         <h2 className="markets-title">Markets</h2>
-        <div className="markets-empty">
+        <div className="not-found-container">
           No assets available in the protocol.
         </div>
       </div>
@@ -35,7 +51,14 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
   }
 
   return (
-    <div>
+    <div className="markets-container">
+      {showLoadingOverlay && (
+        <div className="loading-overlay">
+          <FiLoader className="spinning" />
+          <span>Refreshing market data...</span>
+        </div>
+      )}
+      
       <h2 className="markets-title">Markets</h2>
       
       <div className="markets-table-container">
@@ -47,13 +70,13 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
               <th className="right">Total Supplied</th>
               <th className="right">Total Borrowed</th>
               <th className="right">Utilization Rate</th>
-              <th className="right">Supply Rate</th>
-              <th className="right">Borrow Rate</th>
+              <th className="right">Supply APY</th>
+              <th className="right">Borrow APY</th>
               <th className="right">Loan to Value</th>
             </tr>
           </thead>
           <tbody>
-            {assets.map(asset => {
+            {displayAssets.map(asset => {
               const assetPrice = formatUsdValue(asset.price, asset.decimals);
               
               const totalSuppliedFormatted = formatTokenAmount(asset.total_supplied_with_interest, asset.decimals);

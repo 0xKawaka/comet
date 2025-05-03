@@ -63,8 +63,13 @@ interface TransactionProviderProps {
 }
 
 export const TransactionProvider = ({ children }: TransactionProviderProps) => {
-  const { wallet, address } = useWallet();
+  const { wallet, address, selectedAddress } = useWallet();
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Get the effective address to use - selectedAddress if available, otherwise public address
+  const getEffectiveAddress = (): AztecAddress | undefined => {
+    return selectedAddress || address;
+  };
 
   // Helper function to set up token contract authorization
   const setupTokenAuthorization = async (
@@ -74,7 +79,8 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
     nonce: bigint, 
     isPrivate: boolean
   ): Promise<AuthWitness | undefined> => {
-    if (!wallet || !address) {
+    const effectiveAddress = getEffectiveAddress();
+    if (!wallet || !effectiveAddress) {
       throw new Error("Wallet not initialized");
     }
     
@@ -82,7 +88,7 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
       return await wallet.createAuthWit({
         caller: lendingContract.address,
         action: tokenContract.methods.transfer_to_public(
-          address,
+          effectiveAddress,
           lendingContract.address,
           amount,
           nonce,
@@ -93,7 +99,7 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
         {
           caller: lendingContract.address,
           action: tokenContract.methods.transfer_in_public(
-            address,
+            effectiveAddress,
             lendingContract.address,
             amount,
             nonce,
@@ -115,7 +121,8 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
     secret?: Fr | bigint,
     marketId = 1
   ) => {
-    if (!wallet || !address) {
+    const effectiveAddress = getEffectiveAddress();
+    if (!wallet || !effectiveAddress) {
       throw new Error("Wallet not initialized");
     }
 
@@ -140,14 +147,14 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
           throw new Error("Failed to create auth witness");
         }
 
-        // Use privateRecipient if provided, otherwise use user's address
-        const recipient = privateRecipient || address;
+        // Use privateRecipient if provided, otherwise use effective address
+        const recipient = privateRecipient || effectiveAddress;
         
         // The secret is 0n when the privateRecipient is the user's public address
         const secretValue = secret !== undefined ? secret : 0n;
         
         await lendingContract.methods.deposit_private(
-          address,
+          effectiveAddress,
           amountBigInt,
           nonce,
           secretValue,
@@ -161,7 +168,7 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
         await lendingContract.methods.deposit_public(
           amountBigInt,
           nonce,
-          address,
+          effectiveAddress,
           marketId,
           asset.address
         ).send().wait();
@@ -183,7 +190,8 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
     secret?: Fr | bigint,
     marketId = 1
   ) => {
-    if (!wallet || !address) {
+    const effectiveAddress = getEffectiveAddress();
+    if (!wallet || !effectiveAddress) {
       throw new Error("Wallet not initialized");
     }
 
@@ -198,14 +206,14 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
         
         await lendingContract.methods.withdraw_private(
           secretValue,
-          privateRecipient || address,
+          privateRecipient || effectiveAddress,
           amountBigInt,
           marketId,
           asset.address
         ).send().wait();
       } else {
         await lendingContract.methods.withdraw_public(
-          address,
+          effectiveAddress,
           amountBigInt,
           marketId,
           asset.address
@@ -228,7 +236,8 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
     secret?: Fr | bigint,
     marketId = 1
   ) => {
-    if (!wallet || !address) {
+    const effectiveAddress = getEffectiveAddress();
+    if (!wallet || !effectiveAddress) {
       throw new Error("Wallet not initialized");
     }
 
@@ -243,14 +252,14 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
         
         await lendingContract.methods.borrow_private(
           secretValue,
-          privateRecipient || address,
+          privateRecipient || effectiveAddress,
           amountBigInt,
           marketId,
           asset.address
         ).send().wait();
       } else {
         await lendingContract.methods.borrow_public(
-          address,
+          effectiveAddress,
           amountBigInt,
           marketId,
           asset.address
@@ -273,7 +282,8 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
     secret?: Fr | bigint,
     marketId = 1
   ) => {
-    if (!wallet || !address) {
+    const effectiveAddress = getEffectiveAddress();
+    if (!wallet || !effectiveAddress) {
       throw new Error("Wallet not initialized");
     }
 
@@ -302,11 +312,11 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
         const secretValue = secret !== undefined ? secret : 0n;
         
         await lendingContract.methods.repay_private(
-          address,
+          effectiveAddress,
           amountBigInt,
           nonce,
           secretValue,
-          privateRecipient || address,
+          privateRecipient || effectiveAddress,
           marketId,
           asset.address
         ).send({ authWitnesses: [transferToPublicAuthwit] }).wait();
@@ -316,7 +326,7 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
         await lendingContract.methods.repay_public(
           amountBigInt,
           nonce,
-          address,
+          effectiveAddress,
           marketId,
           asset.address
         ).send().wait();

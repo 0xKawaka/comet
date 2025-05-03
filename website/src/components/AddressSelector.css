@@ -1,0 +1,142 @@
+.address-selector {
+  position: relative;
+  display: inline-flex;
+  margin-left: 12px;
+}
+
+.selected-address {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: rgba(54, 57, 82, 0.3);
+  border: 1px solid #363952;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.selected-address:hover {
+  background-color: rgba(54, 57, 82, 0.5);
+}
+
+.address-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  background-color: #7531fd;
+  border-radius: 50%;
+  color: #ffffff;
+}
+
+.address-text {
+  font-weight: 500;
+  margin-right: 6px;
+}
+
+.address-value {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.8rem;
+  margin-right: 6px;
+  font-family: monospace;
+}
+
+.dropdown-icon {
+  transform: rotate(0);
+  transition: transform 0.2s ease;
+}
+
+.dropdown-icon.open {
+  transform: rotate(180deg);
+}
+
+.address-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: 280px;
+  background-color: #22253a;
+  border: 1px solid #363952;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  padding: 0.5rem;
+  overflow: hidden;
+}
+
+.address-group {
+  margin-bottom: 8px;
+}
+
+.address-group:last-child {
+  margin-bottom: 0;
+}
+
+.group-label {
+  padding: 6px 8px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.address-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem;
+  background: none;
+  border: none;
+  border-radius: 0.25rem;
+  text-align: left;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 0.875rem;
+}
+
+.address-option:hover {
+  background-color: rgba(117, 49, 253, 0.1);
+}
+
+.address-option.selected {
+  background-color: rgba(117, 49, 253, 0.2);
+  color: #d9fbff;
+}
+
+.address-option-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  background-color: #363952;
+  border-radius: 50%;
+  color: #ffffff;
+}
+
+.address-option-icon .selected {
+  background-color: #7531fd;
+}
+
+.address-option-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.address-option-name {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.address-option-value {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.8rem;
+  margin-top: 2px;
+  font-family: monospace;
+} 
