@@ -44,6 +44,7 @@ const ActionModal = ({
   const [currentMaxAmount, setCurrentMaxAmount] = useState<bigint>(maxAmount);
   const [selectedPrivateAddress, setSelectedPrivateAddress] = useState<typeof privateAddresses[0] | null>(null);
   const [showNewSecretOption, setShowNewSecretOption] = useState(false);
+  const [shouldCloseWhenDone, setShouldCloseWhenDone] = useState(false);
 
   // Combined processing state from both local component and TransactionContext
   const isSubmitting = isLocalSubmitting || isTransactionProcessing;
@@ -52,6 +53,8 @@ const ActionModal = ({
   useEffect(() => {
     if (isOpen) {
       refreshAddresses();
+      // Reset the close flag whenever the modal is opened
+      setShouldCloseWhenDone(false);
     }
   }, [isOpen, refreshAddresses]);
 
@@ -72,16 +75,19 @@ const ActionModal = ({
     }
   }, [isPrivate]);
 
-  // Close modal when transaction completes
+  // Track transaction processing state and close modal only when transaction is complete
   useEffect(() => {
-    if (!isTransactionProcessing && isLocalSubmitting) {
-      // Transaction has completed
+    if (isLocalSubmitting && isTransactionProcessing) {
+      // Transaction is now processing, mark it to close when done
+      setShouldCloseWhenDone(true);
+    } else if (shouldCloseWhenDone && !isTransactionProcessing) {
+      // Transaction has completed and we marked it to close
       setIsLocalSubmitting(false);
       setAmount('');
-      // Close the modal to let the data refresh UI show
+      // Close the modal now that processing is complete
       onClose();
     }
-  }, [isTransactionProcessing, isLocalSubmitting, onClose]);
+  }, [isTransactionProcessing, isLocalSubmitting, shouldCloseWhenDone, onClose]);
 
   if (!isOpen) return null;
 
@@ -104,7 +110,6 @@ const ActionModal = ({
     }
 
     setError(null);
-    setIsLocalSubmitting(true);
     
     try {
       // Determine what to pass to onSubmit based on privacy settings
@@ -130,13 +135,20 @@ const ActionModal = ({
         }
       }
       
+      // Set isLocalSubmitting to true right before starting the transaction
+      setIsLocalSubmitting(true);
+      
+      // Call onSubmit which will trigger the transaction
       await onSubmit(amount, isPrivate, recipient, secretValue);
-      // Do not close the modal here - we'll let the useEffect do it when isTransactionProcessing becomes false
-      // This ensures proper transition to data refresh UI
+      
+      // We don't close the modal here. The closing is handled in the useEffect
+      // when isTransactionProcessing becomes false
     } catch (error) {
       console.error(`Error during ${actionType}:`, error);
       setError(`Transaction failed. ${error instanceof Error ? error.message : 'Please try again.'}`);
       setIsLocalSubmitting(false);
+      // Reset the close flag since we had an error
+      setShouldCloseWhenDone(false);
     }
   };
 

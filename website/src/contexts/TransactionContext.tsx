@@ -201,12 +201,15 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
       const amountBigInt = parseUnits(amount, asset.decimals);
       
       if (isPrivate) {
-        // The secret is 0n when the privateRecipient is the user's public address
+        // The secret is the provided value or 0n if not provided
         const secretValue = secret !== undefined ? secret : 0n;
+        
+        // Use the provided privateRecipient (selected in ActionModal) or fallback to effectiveAddress
+        const recipient = privateRecipient || effectiveAddress;
         
         await lendingContract.methods.withdraw_private(
           secretValue,
-          privateRecipient || effectiveAddress,
+          recipient,
           amountBigInt,
           marketId,
           asset.address
@@ -247,12 +250,15 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
       const amountBigInt = parseUnits(amount, asset.decimals);
       
       if (isPrivate) {
-        // The secret is 0n when the privateRecipient is the user's public address
+        // The secret is the provided value or 0n if not provided
         const secretValue = secret !== undefined ? secret : 0n;
+        
+        // Use the provided privateRecipient (selected in ActionModal) or fallback to effectiveAddress
+        const recipient = privateRecipient || effectiveAddress;
         
         await lendingContract.methods.borrow_private(
           secretValue,
-          privateRecipient || effectiveAddress,
+          recipient,
           amountBigInt,
           marketId,
           asset.address
