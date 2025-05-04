@@ -27,9 +27,4 @@ cd interact && npm run deploy
 cd website && npm run dev
 ```
 
-Project Structure
-    interact/ - Contract interaction scripts
-    website/ - Frontend application
-    contracts/ - Smart contracts
-
 ![logo_transparent](https://github.com/user-attachments/assets/fcc47c75-9d90-4705-933d-bb82ce132a48)
