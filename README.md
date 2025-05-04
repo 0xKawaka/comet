@@ -4,8 +4,8 @@ Privacy preserving and decentralized multi-markets lending protocol.
 ## Features
 - Privacy-preserving transactions
 - Decentralized lending markets
-- Multi-asset support
-- Built on Aztec's zk-rollup technology
+- Multi-asset and multi-market support
+- Built on Aztec
 
 ## Quick Start
 
