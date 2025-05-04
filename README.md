@@ -18,7 +18,6 @@ Privacy preserving and decentralized multi-markets lending protocol.
 ```bash
 aztec start --sandbox
 ```
-Wait for the sandbox initialisation
 2. **Deploy and Setup Contracts**
 ```bash
 cd interact && npm run deploy
