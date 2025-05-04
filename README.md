@@ -29,6 +29,6 @@ cd website && npm run dev
 
 ## Project Structure
 
-- `interact/` – Contract interaction scripts  
+- `interact/` – Deployment scripts  
 - `website/` – Frontend application  
-- `contracts/` – Smart contracts (if applicable)
+- `contracts/` – Smart contracts
