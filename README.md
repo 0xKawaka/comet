@@ -1,5 +1,5 @@
 # Comet | Lend and borrow on Aztec
-Privacy preserving and decentralized multi-markets lending protocol.
+Privacy preserving and decentralized multi-markets overcollaterized lending protocol.
 
 ## Features
 - Privacy-preserving transactions
