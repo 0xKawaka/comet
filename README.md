@@ -26,3 +26,9 @@ cd interact && npm run deploy
 ```bash
 cd website && npm run dev
 ```
+
+## Project Structure
+
+- `interact/` – Contract interaction scripts  
+- `website/` – Frontend application  
+- `contracts/` – Smart contracts (if applicable)
