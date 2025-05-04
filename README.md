@@ -23,6 +23,11 @@ aztec start --sandbox
 ```bash
 cd interact && npm i && npm run deploy
 ```
+> **Note:**  
+> The first deployment attempt might fail with the following error:  
+> `Reason: Tx dropped by P2P node.`  
+> If this happens, simply try running the command again.
+
 3. **Start the Frontend**
 ```bash
 cd website && npm i && npm run dev
