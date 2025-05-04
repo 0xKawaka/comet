@@ -10,7 +10,7 @@ Privacy preserving and decentralized multi-markets overcollaterized lending prot
 ## Quick Start
 
 ### Prerequisites
-- Aztec CLI: install via `bash -i <(curl -s https://install.aztec.network)`
+- Aztec sandbox: install via `bash -i <(curl -s https://install.aztec.network)`
 
 ### Running Locally
 
