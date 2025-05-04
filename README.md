@@ -21,11 +21,11 @@ aztec start --sandbox
 ```
 2. **Deploy and Setup Contracts**
 ```bash
-cd interact && npm run deploy
+cd interact && npm i && npm run deploy
 ```
 3. **Start the Frontend**
 ```bash
-cd website && npm run dev
+cd website && npm i && npm run dev
 ```
 
 ## Project Structure
