@@ -209,47 +209,18 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
         
         // Use the provided privateRecipient (selected in ActionModal) or fallback to effectiveAddress
         const recipient = privateRecipient || effectiveAddress;
+
+        console.log("secretValue:", secretValue);
+        console.log("recipient:", recipient.toString());
         
-        // await lendingContract.methods.withdraw_private(
-        //   secretValue,
-        //   recipient,
-        //   amountBigInt,
-        //   marketId,
-        //   asset.address
-        // ).send().wait();
-
-        const pxe = createPXEClient('http://localhost:8080');
-
-        const txRequest = await lendingContract.methods.withdraw_private(
+        await lendingContract.methods.withdraw_private(
           secretValue,
           recipient,
           amountBigInt,
           marketId,
           asset.address
-        ).create();
+        ).send().wait();
 
-        // Simulate the transaction with specific scopes
-        const simulationResult = await pxe.simulateTx(
-          txRequest,
-          true, // simulate public
-          undefined, // use default message sender
-          false, // don't skip tx validation
-          false, // don't skip fee enforcement
-          [wallet.getAddress(), recipient, lendingContract.address] // specify ALL necessary scopes
-        );
-        
-        // Get the private execution result from the simulation
-        const privateExecutionResult = simulationResult.privateExecutionResult;
-        
-        // Prove the transaction with the execution result
-        const txProvingResult = await pxe.proveTx(txRequest, privateExecutionResult);
-        
-        // Create a transaction from the proving result
-        const tx = txProvingResult.toTx();
-        
-        // Send the transaction
-        const sentTx = await wallet.sendTx(tx);
-        console.log("Sent tx:", sentTx);
       } else {
         await lendingContract.methods.withdraw_public(
           effectiveAddress,

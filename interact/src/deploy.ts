@@ -43,28 +43,35 @@ async function main() {
   console.log(`PriceFeed3 deployed at ${priceFeed3.address.toString()}`);
   console.log(`Lending deployed at ${lending.address.toString()}`);
 
-  console.log('Registering contracts...');
-  await Promise.all([
-    pxe.registerSender(ownerWallet.getAddress()),
-    pxe.registerSender(userWallet.getAddress()),
-    pxe.registerSender(lending.address),
-    pxe.registerContract({
-      instance: lending.instance, 
-      artifact: lending.artifact,
-    }),
-    pxe.registerContract({
-      instance: token1.instance, 
-      artifact: token1.artifact,
-    }),
-    pxe.registerContract({
-      instance: token2.instance, 
-      artifact: token2.artifact,
-    }),
-    pxe.registerContract({
-      instance: token3.instance, 
-      artifact: token3.artifact,
-    })
-  ]);
+  
+  console.log('Registering contract...');
+
+  const contractSecretKey = Fr.random();
+  const partialAddress = await lending.partialAddress;
+  await pxe.registerAccount(contractSecretKey, partialAddress)
+  
+  // await Promise.all([
+  //   pxe.registerSender(ownerWallet.getAddress()),
+  //   pxe.registerSender(userWallet.getAddress()),
+  //   pxe.registerSender(lending.address),
+
+  //   pxe.registerContract({
+  //     instance: lending.instance, 
+  //     artifact: lending.artifact,
+  //   }),
+  //   pxe.registerContract({
+  //     instance: token1.instance, 
+  //     artifact: token1.artifact,
+  //   }),
+  //   pxe.registerContract({
+  //     instance: token2.instance, 
+  //     artifact: token2.artifact,
+  //   }),
+  //   pxe.registerContract({
+  //     instance: token3.instance, 
+  //     artifact: token3.artifact,
+  //   })
+  // ]);
 
   console.log('Setting minters...');
   await Promise.all([

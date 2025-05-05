@@ -34,7 +34,7 @@ const ActionModal = ({
   maxAmount,
   onSubmit 
 }: ActionModalProps) => {
-  const { address: userAddress } = useWallet();
+  const { address: userAddress, isSecretAdrsSelected, selectedAddress, selectedAddressSecret } = useWallet();
   const { privateAddresses, refreshAddresses, isProcessing: isTransactionProcessing } = useTransaction();
   
   const [amount, setAmount] = useState('');
@@ -42,7 +42,7 @@ const ActionModal = ({
   const [isLocalSubmitting, setIsLocalSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentMaxAmount, setCurrentMaxAmount] = useState<bigint>(maxAmount);
-  const [selectedPrivateAddress, setSelectedPrivateAddress] = useState<typeof privateAddresses[0] | null>(null);
+  const [modalSelectedAddress, setModalSelectedAddress] = useState<typeof privateAddresses[0] | null>(null);
   const [showNewSecretOption, setShowNewSecretOption] = useState(false);
   const [shouldCloseWhenDone, setShouldCloseWhenDone] = useState(false);
 
@@ -55,12 +55,31 @@ const ActionModal = ({
       refreshAddresses();
       // Reset the close flag whenever the modal is opened
       setShouldCloseWhenDone(false);
+      
+      // Initialize isPrivate based on the global state if the modal is opened
+      if (isSecretAdrsSelected) {
+        setIsPrivate(true);
+      }
     }
-  }, [isOpen, refreshAddresses]);
+  }, [isOpen, refreshAddresses, isSecretAdrsSelected]);
+
+  // Separate effect to handle private address matching
+  useEffect(() => {
+    if (isOpen && isSecretAdrsSelected && selectedAddress && selectedAddressSecret !== undefined) {
+      const privateAddrMatch = privateAddresses.find(addr => 
+        addr.address.equals(selectedAddress) && addr.secret === selectedAddressSecret
+      );
+      
+      if (privateAddrMatch) {
+        setModalSelectedAddress(privateAddrMatch);
+        setShowNewSecretOption(false);
+      }
+    }
+  }, [isOpen, isSecretAdrsSelected, selectedAddress, selectedAddressSecret, privateAddresses]);
 
   useEffect(() => {
     // Update max amount when privacy toggle changes, but only for deposit action
-    if (actionType === 'deposit') {
+    if (actionType === 'deposit' || actionType === 'repay') {
       setCurrentMaxAmount(isPrivate ? asset.wallet_balance_private : asset.wallet_balance);
     } else {
       setCurrentMaxAmount(maxAmount);
@@ -70,7 +89,7 @@ const ActionModal = ({
   useEffect(() => {
     // Reset selected private address when privacy toggle changes
     if (!isPrivate) {
-      setSelectedPrivateAddress(null);
+      setModalSelectedAddress(null);
       setShowNewSecretOption(false);
     }
   }, [isPrivate]);
@@ -97,7 +116,7 @@ const ActionModal = ({
 
   const handleCreateNewSecret = () => {
     setShowNewSecretOption(true);
-    setSelectedPrivateAddress(null);
+    setModalSelectedAddress(null);
   };
 
   // Get action title (Supply, Withdraw, etc.)
@@ -117,35 +136,32 @@ const ActionModal = ({
       let secretValue: Fr | bigint | undefined;
       
       if (isPrivate) {
-        if (actionType === 'repay') {
-          // For repay, we send from the selected private account to the lending contract
-          if (selectedPrivateAddress) {
-            // Use the selected private address's secret for repayment
-            secretValue = selectedPrivateAddress.secret;
-            recipient = selectedPrivateAddress.address; // Use the selected address as recipient
-          } else {
-            // Use user's public address with secret 0n
-            recipient = userAddress;
-            secretValue = 0n;
+        if (modalSelectedAddress) {
+          // Always set recipient to modalSelectedAddress for private transactions
+          recipient = modalSelectedAddress.address;
+          
+          // Set secretValue based on transaction type
+          if (actionType === 'deposit' || actionType === 'repay') {
+            secretValue = modalSelectedAddress.secret;
+          } else if (actionType === 'withdraw' || actionType === 'borrow') {
+            secretValue = selectedAddressSecret;
           }
-        } else {
-          // For other actions (deposit, withdraw, borrow)
-          if (showNewSecretOption) {
-            // Create a new secret account
+        } else if (showNewSecretOption && actionType !== 'repay') {
+          // Create a new secret account (only for non-repay actions)
+          if(actionType === 'deposit') {
             secretValue = generateRandomSecret();
-            if (!userAddress) throw new Error('User address not available');
-            recipient = createPrivateAddress(secretValue, userAddress);
-          } else if (selectedPrivateAddress) {
-            // Use selected private address
-            recipient = selectedPrivateAddress.address;
-            secretValue = selectedPrivateAddress.secret;
-          } else if (userAddress) {
-            // Use user's public address as private recipient with secret 0n
-            recipient = userAddress;
-            secretValue = 0n;
           } else {
-            throw new Error('No address selected for private transaction');
+            secretValue = selectedAddressSecret;
           }
+          if(!secretValue) throw new Error('Secret value not available');
+          if (!userAddress) throw new Error('User address not available');
+          recipient = createPrivateAddress(secretValue, userAddress);
+        } else if (userAddress) {
+          // Use user's public address as private recipient with secret 0n
+          recipient = userAddress;
+          secretValue = 0n;
+        } else {
+          throw new Error('No modal address found for private transaction');
         }
       }
       
@@ -176,9 +192,9 @@ const ActionModal = ({
         </h3>
         <div className="private-address-options">
           <div 
-            className={`private-address-option ${!selectedPrivateAddress && !showNewSecretOption ? 'selected' : ''}`}
+            className={`private-address-option ${!modalSelectedAddress && !showNewSecretOption ? 'selected' : ''}`}
             onClick={() => {
-              setSelectedPrivateAddress(null);
+              setModalSelectedAddress(null);
               setShowNewSecretOption(false);
             }}
           >
@@ -199,9 +215,9 @@ const ActionModal = ({
           {privateAddresses.map((addr, index) => (
             <div 
               key={index}
-              className={`private-address-option ${selectedPrivateAddress?.address.equals(addr.address) ? 'selected' : ''}`}
+              className={`private-address-option ${modalSelectedAddress?.address.equals(addr.address) ? 'selected' : ''}`}
               onClick={() => {
-                setSelectedPrivateAddress(addr);
+                setModalSelectedAddress(addr);
                 setShowNewSecretOption(false);
               }}
             >

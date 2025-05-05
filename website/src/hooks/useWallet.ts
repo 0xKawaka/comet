@@ -11,8 +11,27 @@ export function useWallet(): {
   address: AztecAddress | undefined;
   selectedAddress: AztecAddress | undefined;
   setSelectedAddress: (address: AztecAddress) => void;
+  isSecretAdrsSelected: boolean;
+  selectedAddressSecret: bigint | undefined;
   isLoading: boolean 
 } {
-  const { wallet, address, selectedAddress, setSelectedAddress, isLoading } = useContext(WalletContext);
-  return { wallet, address, selectedAddress, setSelectedAddress, isLoading };
+  const { 
+    wallet, 
+    address, 
+    selectedAddress, 
+    setSelectedAddress, 
+    isSecretAdrsSelected, 
+    selectedAddressSecret,
+    isLoading 
+  } = useContext(WalletContext);
+  
+  return { 
+    wallet, 
+    address, 
+    selectedAddress, 
+    setSelectedAddress, 
+    isSecretAdrsSelected, 
+    selectedAddressSecret,
+    isLoading 
+  };
 } 
