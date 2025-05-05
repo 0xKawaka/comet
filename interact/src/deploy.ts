@@ -10,6 +10,7 @@ import { writeFileSync } from 'fs';
 const { PXE_URL = 'http://localhost:8080' } = process.env;
 
 async function main() {
+  console.log('Retrieving PXE...');
   const pxe = createPXEClient(PXE_URL);
   await waitForPXE(pxe);
 
@@ -20,6 +21,7 @@ async function main() {
   const userWallet = wallets[1];
   const userAddress = userWallet.getAddress();
 
+  console.log('Deploying contracts...');
   // Deploy tokens in parallel
   const [token1, token2, token3, priceFeed1, priceFeed2, priceFeed3] = await Promise.all([
     TokenContract.deploy(ownerWallet, ownerAddress, 'token 1', 'TK1', 9).send().deployed(),
@@ -41,13 +43,37 @@ async function main() {
   console.log(`PriceFeed3 deployed at ${priceFeed3.address.toString()}`);
   console.log(`Lending deployed at ${lending.address.toString()}`);
 
-  // Set minters in parallel
+  console.log('Registering contracts...');
+  await Promise.all([
+    pxe.registerSender(ownerWallet.getAddress()),
+    pxe.registerSender(userWallet.getAddress()),
+    pxe.registerSender(lending.address),
+    pxe.registerContract({
+      instance: lending.instance, 
+      artifact: lending.artifact,
+    }),
+    pxe.registerContract({
+      instance: token1.instance, 
+      artifact: token1.artifact,
+    }),
+    pxe.registerContract({
+      instance: token2.instance, 
+      artifact: token2.artifact,
+    }),
+    pxe.registerContract({
+      instance: token3.instance, 
+      artifact: token3.artifact,
+    })
+  ]);
+
+  console.log('Setting minters...');
   await Promise.all([
     token1.methods.set_minter(ownerAddress, true).send().wait(),
     token2.methods.set_minter(lending.address, true).send().wait(),
     token3.methods.set_minter(lending.address, true).send().wait()
   ]);
 
+  console.log('Minting tokens...');
   await Promise.all([
     token1.methods.mint_to_public(ownerAddress, 1000n * 10n ** 9n).send().wait(),
     token2.methods.mint_to_public(ownerAddress, 1000n * 10n ** 9n).send().wait(),
@@ -65,10 +91,8 @@ async function main() {
     lending.methods.add_asset(1n, token2.address, priceFeed2.address, 7000n, true, 700000000n, 2000000000n, 3000000000n, 1000000000000000n).send().wait(),
     lending.methods.add_asset(1n, token3.address, priceFeed3.address, 8000n, true, 800000000n, 2000000000n, 3000000000n, 1000000000000000n).send().wait()
   ]);
-
-  // Now you can call transfer_to_private from within a contract
-  console.log('Contract registered with encryption keys');
   
+  console.log('Writing files...');
   const addresses = { lending: lending.address.toString() };
 
   // Write files synchronously
