@@ -55,7 +55,7 @@ const MarketsView = ({ onAssetSelect }: MarketsViewProps) => {
       {showLoadingOverlay && (
         <div className="loading-overlay">
           <FiLoader className="spinning" />
-          <span>Refreshing market data...</span>
+          <span>Loading market data...</span>
         </div>
       )}
       

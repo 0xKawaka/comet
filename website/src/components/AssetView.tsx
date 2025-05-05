@@ -216,7 +216,7 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
       {showLoadingOverlay && (
         <div className="loading-overlay">
           <FiLoader className="spinning" />
-          <span>Refreshing asset data...</span>
+          <span>Loading asset data...</span>
         </div>
       )}
       

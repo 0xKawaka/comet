@@ -1,4 +1,5 @@
 /* AssetView.css */
+@import '../styles/loading.css';
 
 .asset-view-container {
   min-height: 100%;
@@ -69,23 +70,6 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
-}
-
-.loading-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  color: #9fa1b2;
-  padding: 3rem 0;
-}
-
-.not-found-container {
-  text-align: center;
-  padding: 2rem;
-  border-radius: 0.5rem;
-  background-color: rgba(34, 37, 58, 0.5);
-  color: #9fa1b2;
 }
 
 .stats-grid {
@@ -161,35 +145,6 @@
   font-weight: 600;
   color: white;
   margin: 1.5rem 0 0.5rem 0;
-}
-
-/* Loading overlay styles */
-.loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(23, 25, 36, 0.8);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  backdrop-filter: blur(4px);
-  border-radius: 0.75rem;
-  gap: 1rem;
-}
-
-.loading-overlay .spinning {
-  font-size: 2rem;
-  color: #8a8dff;
-  animation: spin 1s linear infinite; 
-}
-
-.loading-overlay span {
-  color: #d9fbff;
-  font-weight: 500;
 }
 
 .action-card {
@@ -289,19 +244,6 @@
   font-size: 0.925rem;
   letter-spacing: 0.02em;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.spinning {
-  animation: spin 1s linear infinite;
 }
 
 /* Add responsive adjustments for smaller screens */

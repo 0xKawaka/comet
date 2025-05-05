@@ -80,6 +80,7 @@ interface LendingContextType {
   borrowAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
   repayAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
   refreshData: () => Promise<void>;
+  refreshAssetData: (assetId: string) => Promise<void>;
 }
 
 // Interface for fetched asset data structure
@@ -119,7 +120,8 @@ const defaultContext: LendingContextType = {
   withdrawAsset: async () => {},
   borrowAsset: async () => {},
   repayAsset: async () => {},
-  refreshData: async () => {}
+  refreshData: async () => {},
+  refreshAssetData: async () => {}
 };
 
 export const LendingContext = createContext<LendingContextType>(defaultContext);
@@ -677,8 +679,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         marketId
       );
       
-      // Refresh data after the transaction
-      await refreshData();
+      // Refresh only the specific asset data after the transaction
+      await refreshAssetData(assetId);
     } catch (error) {
       console.error(`Error depositing asset:`, error);
       throw error;
@@ -704,8 +706,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         marketId
       );
       
-      // Refresh data after the transaction
-      await refreshData();
+      // Refresh only the specific asset data after the transaction
+      await refreshAssetData(assetId);
     } catch (error) {
       console.error(`Error withdrawing asset:`, error);
       throw error;
@@ -731,8 +733,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         marketId
       );
       
-      // Refresh data after the transaction
-      await refreshData();
+      // Refresh only the specific asset data after the transaction
+      await refreshAssetData(assetId);
     } catch (error) {
       console.error(`Error borrowing asset:`, error);
       throw error;
@@ -758,8 +760,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         marketId
       );
       
-      // Refresh data after the transaction
-      await refreshData();
+      // Refresh only the specific asset data after the transaction
+      await refreshAssetData(assetId);
     } catch (error) {
       console.error(`Error repaying asset:`, error);
       throw error;
@@ -854,6 +856,193 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     }
   };
 
+  // Function to fetch data for a single asset
+  const fetchSingleAssetData = async (contract: LendingContract, assetId: string, signal?: AbortSignal): Promise<Asset | null> => {
+    // Check that wallet is available and we have a current address reference
+    if (!wallet || !currentAddressRef.current) return null;
+    
+    // Use the captured reference address for consistent fetching
+    const currentAddress = currentAddressRef.current;
+    
+    // Check for abort before starting
+    if (signal?.aborted) {
+      throw new DOMException("Fetch aborted", "AbortError");
+    }
+    
+    // Parse asset metadata from JSON
+    const assetsData = allAssets as Record<string, AssetMetadata>;
+    
+    // Get the specific asset data
+    const data = assetsData[assetId];
+    if (!data) {
+      console.error(`Asset with ID ${assetId} not found in metadata`);
+      return null;
+    }
+    
+    const assetAddress = AztecAddress.fromString(assetId);
+    const oracleAddress = AztecAddress.fromString(data.oracle);
+    
+    try {
+      // Create token and price feed contracts
+      const tokenContract = await TokenContract.at(assetAddress, wallet);
+      const priceFeedContract = await PriceFeedContract.at(oracleAddress, wallet);
+      
+      // Check for abort after contract initialization
+      if (signal?.aborted) {
+        throw new DOMException("Fetch aborted", "AbortError");
+      }
+      
+      // Check if the address has changed during contract initialization
+      if (!currentAddressRef.current || !currentAddress.equals(currentAddressRef.current)) {
+        console.log("Address changed during contract initialization, aborting fetch");
+        return null;
+      }
+      
+      // Bundle all the async calls for this asset
+      const [
+        walletBalance,
+        walletBalancePrivate,
+        userPosition,
+        totalSupplied,
+        totalBorrowed,
+        priceResponse,
+        accumulators
+      ] = await Promise.all([
+        // Get wallet balances - use currentAddress
+        tokenContract.methods.balance_of_public(currentAddress).simulate(),
+        tokenContract.methods.balance_of_private(currentAddress).simulate(),
+        
+        // Get user position - use currentAddress
+        contract.methods.get_position(currentAddress, marketId, assetAddress).simulate(),
+        
+        // Get total supplied and borrowed
+        contract.methods.get_total_deposited_assets(marketId, assetAddress).simulate(),
+        contract.methods.get_total_borrowed_assets(marketId, assetAddress).simulate(),
+        
+        // Get price
+        priceFeedContract.methods.get_price(0).simulate(),
+        
+        // Get accumulators
+        contract.methods.get_accumulators(marketId, assetAddress).simulate()
+      ]);
+      
+      // Check for abort after data fetching
+      if (signal?.aborted) {
+        throw new DOMException("Fetch aborted", "AbortError");
+      }
+      
+      // Final check - if address changed during any of the fetches, return null
+      if (!currentAddressRef.current || !currentAddress.equals(currentAddressRef.current)) {
+        console.log("Address changed during data fetching, aborting");
+        return null;
+      }
+      
+      // Prepare the metadata object
+      const metadata = { 
+        id: assetId, 
+        assetAddress, 
+        data 
+      };
+      
+      // Process asset data into an Asset object
+      return processAssetData({
+        walletBalance,
+        walletBalancePrivate,
+        userPosition,
+        totalSupplied,
+        totalBorrowed,
+        priceResponse,
+        accumulators,
+        metadata
+      });
+    } catch (error) {
+      console.error(`Error fetching data for asset ${assetId}:`, error);
+      return null;
+    }
+  };
+
+  // Add the refreshAssetData function
+  const refreshAssetData = async (assetId: string) => {
+    if (!wallet || !selectedAddress || !lendingContract) {
+      console.error("Cannot refresh asset data: wallet, selectedAddress, or lendingContract is not initialized");
+      return;
+    }
+    
+    // Abort any previous fetch operation
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create a new abort controller for this fetch operation
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    
+    // Store the address we're currently fetching for
+    const fetchingForAddress = selectedAddress;
+    // Update the reference to the current address
+    currentAddressRef.current = fetchingForAddress;
+    
+    // Set the refreshing state
+    setIsRefreshing(true);
+    
+    try {
+      // Check if the operation was aborted before we even started
+      if (abortController.signal.aborted) {
+        console.log("Fetch operation aborted before it started");
+        return;
+      }
+      
+      // Fetch the single asset data
+      const updatedAsset = await fetchSingleAssetData(lendingContract, assetId, abortController.signal);
+      
+      // Check if the operation was aborted during fetching
+      if (abortController.signal.aborted) {
+        console.log("Fetch operation aborted during execution");
+        return;
+      }
+      
+      // If the address changed or we couldn't fetch the asset, just return
+      if (!currentAddressRef.current || 
+          !fetchingForAddress.equals(currentAddressRef.current) || 
+          !updatedAsset) {
+        console.log("Address changed during data fetch or asset not found, discarding results");
+        return;
+      }
+      
+      // Update the assets array with the new asset data
+      setAssets(prevAssets => {
+        const updatedAssets = prevAssets.map(asset => 
+          asset.id === assetId ? updatedAsset : asset
+        );
+        
+        // Calculate user position metrics
+        updateUserPosition(updatedAssets);
+        
+        return updatedAssets;
+      });
+    } catch (error) {
+      // Don't report errors for aborted operations
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log("Fetch operation aborted:", error.message);
+      } else {
+        console.error(`Failed to refresh asset ${assetId}:`, error);
+      }
+    } finally {
+      // Clear the abort controller reference if it's still the same one
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
+      
+      // Only set refreshing to false if we're still fetching for the same address
+      // and the operation wasn't aborted
+      if (!abortController.signal.aborted && 
+          currentAddressRef.current && 
+          fetchingForAddress.equals(currentAddressRef.current)) {
+        setIsRefreshing(false);
+      }
+    }
+  };
+
   return (
     <LendingContext.Provider
       value={{
@@ -865,7 +1054,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         withdrawAsset,
         borrowAsset,
         repayAsset,
-        refreshData
+        refreshData,
+        refreshAssetData
       }}
     >
       {children}

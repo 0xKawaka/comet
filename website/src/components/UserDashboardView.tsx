@@ -56,7 +56,7 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
   if (isLoading && assets.length === 0 && lastAssets.length === 0) {
     return (
       <div className="dashboard-container">
-        <h2 className="dashboard-heading">Your Dashboard</h2>
+        <div className="dashboard-heading">Your Dashboard</div>
         <div className="loading-container">
           <FiLoader className="spinning" />
           <span>Loading your positions...</span>
@@ -336,7 +336,7 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
       {showLoadingOverlay && (
         <div className="loading-overlay">
           <FiLoader className="spinning" />
-          <span>Refreshing your positions...</span>
+          <span>Loading your positions...</span>
         </div>
       )}
       

@@ -117,21 +117,35 @@ const ActionModal = ({
       let secretValue: Fr | bigint | undefined;
       
       if (isPrivate) {
-        if (showNewSecretOption) {
-          // Create a new secret account
-          secretValue = generateRandomSecret();
-          if (!userAddress) throw new Error('User address not available');
-          recipient = createPrivateAddress(secretValue, userAddress);
-        } else if (selectedPrivateAddress) {
-          // Use selected private address
-          recipient = selectedPrivateAddress.address;
-          secretValue = selectedPrivateAddress.secret;
-        } else if (userAddress) {
-          // Use user's public address as private recipient with secret 0n
-          recipient = userAddress;
-          secretValue = 0n;
+        if (actionType === 'repay') {
+          // For repay, we send from the selected private account to the lending contract
+          if (selectedPrivateAddress) {
+            // Use the selected private address's secret for repayment
+            secretValue = selectedPrivateAddress.secret;
+            recipient = selectedPrivateAddress.address; // Use the selected address as recipient
+          } else {
+            // Use user's public address with secret 0n
+            recipient = userAddress;
+            secretValue = 0n;
+          }
         } else {
-          throw new Error('No address selected for private transaction');
+          // For other actions (deposit, withdraw, borrow)
+          if (showNewSecretOption) {
+            // Create a new secret account
+            secretValue = generateRandomSecret();
+            if (!userAddress) throw new Error('User address not available');
+            recipient = createPrivateAddress(secretValue, userAddress);
+          } else if (selectedPrivateAddress) {
+            // Use selected private address
+            recipient = selectedPrivateAddress.address;
+            secretValue = selectedPrivateAddress.secret;
+          } else if (userAddress) {
+            // Use user's public address as private recipient with secret 0n
+            recipient = userAddress;
+            secretValue = 0n;
+          } else {
+            throw new Error('No address selected for private transaction');
+          }
         }
       }
       
@@ -157,7 +171,9 @@ const ActionModal = ({
     
     return (
       <div className="private-address-section">
-        <h3 className="private-address-title">Private Recipient</h3>
+        <h3 className="private-address-title">
+          {actionType === 'repay' ? 'From Account' : 'Private Recipient'}
+        </h3>
         <div className="private-address-options">
           <div 
             className={`private-address-option ${!selectedPrivateAddress && !showNewSecretOption ? 'selected' : ''}`}
@@ -170,13 +186,15 @@ const ActionModal = ({
             <div className="address-value">{userAddress?.toString().substring(0, 10)}...</div>
           </div>
           
-          <div 
-            className={`private-address-option ${showNewSecretOption ? 'selected' : ''}`}
-            onClick={handleCreateNewSecret}
-          >
-            <div className="address-label">New Secret Account</div>
-            <div className="address-value">Generate new private address</div>
-          </div>
+          {actionType !== 'repay' && (
+            <div 
+              className={`private-address-option ${showNewSecretOption ? 'selected' : ''}`}
+              onClick={handleCreateNewSecret}
+            >
+              <div className="address-label">New Secret Account</div>
+              <div className="address-value">Generate new private address</div>
+            </div>
+          )}
           
           {privateAddresses.map((addr, index) => (
             <div 
