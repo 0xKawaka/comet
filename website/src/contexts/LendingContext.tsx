@@ -75,10 +75,10 @@ interface LendingContextType {
   userPosition: UserPosition;
   lendingContract: LendingContract | null;
   isLoading: boolean;
-  depositAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
+  depositAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint, fromPublicBalance?: boolean) => Promise<void>;
   withdrawAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
   borrowAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
-  repayAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
+  repayAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint, fromPublicBalance?: boolean) => Promise<void>;
   refreshData: () => Promise<void>;
   refreshAssetData: (assetId: string) => Promise<void>;
 }
@@ -660,7 +660,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     return asset;
   };
 
-  const depositAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => {
+  const depositAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint, fromPublicBalance?: boolean) => {
     try {
       const asset = validateTransaction(assetId);
       
@@ -676,7 +676,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         isPrivate,
         privateRecipient,
         secret,
-        marketId
+        marketId,
+        fromPublicBalance
       );
       
       // Refresh only the specific asset data after the transaction
@@ -741,7 +742,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     }
   };
 
-  const repayAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => {
+  const repayAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint, fromPublicBalance?: boolean) => {
     try {
       const asset = validateTransaction(assetId);
       
@@ -757,7 +758,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         isPrivate,
         privateRecipient,
         secret,
-        marketId
+        marketId,
+        fromPublicBalance
       );
       
       // Refresh only the specific asset data after the transaction

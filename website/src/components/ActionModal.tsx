@@ -15,7 +15,7 @@ interface ActionModalProps {
   asset: Asset;
   actionType: 'deposit' | 'withdraw' | 'borrow' | 'repay';
   maxAmount: bigint;
-  onSubmit: (amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
+  onSubmit: (amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint, fromPublicBalance?: boolean) => Promise<void>;
 }
 
 // Action title mapping
@@ -80,7 +80,7 @@ const ActionModal = ({
   useEffect(() => {
     // Update max amount when privacy toggle changes, but only for deposit action
     if (actionType === 'deposit' || actionType === 'repay') {
-      setCurrentMaxAmount(isPrivate ? asset.wallet_balance_private : asset.wallet_balance);
+      setCurrentMaxAmount(isPrivate && !isSecretAdrsSelected ? asset.wallet_balance_private : asset.wallet_balance);
     } else {
       setCurrentMaxAmount(maxAmount);
     }
@@ -134,8 +134,18 @@ const ActionModal = ({
       // Determine what to pass to onSubmit based on privacy settings
       let recipient: AztecAddress | undefined;
       let secretValue: Fr | bigint | undefined;
+      let fromPublicBalance = false;
       
       if (isPrivate) {
+        // Determine fromPublicBalance based on conditions
+        if (actionType === 'deposit' && isSecretAdrsSelected) {
+          // When depositing with a selected secret account, use public balance
+          fromPublicBalance = true;
+        } else if (actionType === 'repay' && modalSelectedAddress) {
+          // When repaying from a selected modal address
+          fromPublicBalance = true;
+        }
+        
         if (modalSelectedAddress) {
           // Always set recipient to modalSelectedAddress for private transactions
           recipient = modalSelectedAddress.address;
@@ -159,7 +169,11 @@ const ActionModal = ({
         } else if (userAddress) {
           // Use user's public address as private recipient with secret 0n
           recipient = userAddress;
-          secretValue = 0n;
+          if (actionType === 'deposit' || actionType === 'repay') {
+            secretValue = 0n;
+          } else if (actionType === 'withdraw' || actionType === 'borrow') {
+            secretValue = selectedAddressSecret;
+          }
         } else {
           throw new Error('No modal address found for private transaction');
         }
@@ -169,7 +183,7 @@ const ActionModal = ({
       setIsLocalSubmitting(true);
       
       // Call onSubmit which will trigger the transaction
-      await onSubmit(amount, isPrivate, recipient, secretValue);
+      await onSubmit(amount, isPrivate, recipient, secretValue, fromPublicBalance);
       
       // We don't close the modal here. The closing is handled in the useEffect
       // when isTransactionProcessing becomes false

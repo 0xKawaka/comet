@@ -15,7 +15,8 @@ interface TransactionContextType {
     isPrivate: boolean,
     privateRecipient?: AztecAddress,
     secret?: Fr | bigint,
-    marketId?: number
+    marketId?: number,
+    fromPublicBalance?: boolean
   ) => Promise<void>;
   withdrawAsset: (
     lendingContract: LendingContract,
@@ -42,7 +43,8 @@ interface TransactionContextType {
     isPrivate: boolean,
     privateRecipient?: AztecAddress,
     secret?: Fr | bigint,
-    marketId?: number
+    marketId?: number,
+    fromPublicBalance?: boolean
   ) => Promise<void>;
 }
 
@@ -122,7 +124,8 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
     isPrivate: boolean,
     privateRecipient?: AztecAddress,
     secret?: Fr | bigint,
-    marketId = 1
+    marketId = 1,
+    fromPublicBalance = false
   ) => {
     const effectiveAddress = getEffectiveAddress();
     if (!wallet || !effectiveAddress) {
@@ -163,7 +166,8 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
           secretValue,
           recipient,
           marketId,
-          asset.address
+          asset.address,
+          fromPublicBalance
         ).send({ authWitnesses: [transferToPublicAuthwit] }).wait();
       } else {
         await setupTokenAuthorization(tokenContract, lendingContract, amountBigInt, nonce, false);
@@ -293,7 +297,8 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
     isPrivate: boolean,
     privateRecipient?: AztecAddress,
     secret?: Fr | bigint,
-    marketId = 1
+    marketId = 1,
+    fromPublicBalance = false
   ) => {
     const effectiveAddress = getEffectiveAddress();
     if (!wallet || !effectiveAddress) {
@@ -333,7 +338,8 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
           secretValue,
           effectiveAddress,
           marketId,
-          asset.address
+          asset.address,
+          fromPublicBalance
         ).send({ authWitnesses: [transferToPublicAuthwit] }).wait();
       } else {
         await setupTokenAuthorization(tokenContract, lendingContract, amountBigInt, nonce, false);
@@ -361,7 +367,7 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
         depositAsset,
         withdrawAsset,
         borrowAsset,
-        repayAsset
+        repayAsset,
       }}
     >
       {children}

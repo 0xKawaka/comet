@@ -13,7 +13,8 @@ type TransactionFunction = (
   isPrivate: boolean,
   privateRecipient?: AztecAddress,
   secret?: Fr | bigint,
-  marketId?: number
+  marketId?: number,
+  fromPublicBalance?: boolean
 ) => Promise<void>;
 
 /**
@@ -48,7 +49,8 @@ export function useTransaction() {
     isPrivate: boolean,
     privateRecipient?: AztecAddress,
     secret?: Fr | bigint,
-    marketId?: number
+    marketId?: number,
+    fromPublicBalance?: boolean
   ) => {
     // If using a private address with a secret, make sure it's added to storage
     if (isPrivate && privateRecipient && secret) {
@@ -67,20 +69,35 @@ export function useTransaction() {
     }[txType];
     
     // Execute the transaction
-    return txFunction(
-      lendingContract,
-      asset,
-      amount,
-      isPrivate,
-      privateRecipient,
-      secret,
-      marketId
-    );
+    if (txType === 'deposit' || txType === 'repay') {
+      // These functions need the fromPublicBalance parameter
+      return txFunction(
+        lendingContract,
+        asset,
+        amount,
+        isPrivate,
+        privateRecipient,
+        secret,
+        marketId,
+        fromPublicBalance
+      );
+    } else {
+      // Withdraw and borrow don't need fromPublicBalance
+      return txFunction(
+        lendingContract,
+        asset,
+        amount,
+        isPrivate,
+        privateRecipient,
+        secret,
+        marketId
+      );
+    }
   };
 
   // Create specialized functions that use the generic handler
-  const depositAsset: TransactionFunction = (lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId) => 
-    executeTransaction('deposit', lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId);
+  const depositAsset: TransactionFunction = (lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId, fromPublicBalance) => 
+    executeTransaction('deposit', lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId, fromPublicBalance);
   
   const withdrawAsset: TransactionFunction = (lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId) => 
     executeTransaction('withdraw', lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId);
@@ -88,8 +105,8 @@ export function useTransaction() {
   const borrowAsset: TransactionFunction = (lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId) => 
     executeTransaction('borrow', lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId);
   
-  const repayAsset: TransactionFunction = (lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId) => 
-    executeTransaction('repay', lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId);
+  const repayAsset: TransactionFunction = (lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId, fromPublicBalance) => 
+    executeTransaction('repay', lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId, fromPublicBalance);
 
   return {
     // Transaction state

@@ -47,12 +47,16 @@ pub contract Lending {
         on_behalf_of: Field,
         market_id: Field,
         asset_address: AztecAddress,
+        fromPublicBalance: bool,
     ) {
         let on_behalf_of =
             compute_identifier(secret, on_behalf_of, context.msg_sender().to_field());
-        // docs:start:private_call
-        let _ = Token::at(asset_address).transfer_to_public(from, context.this_address(), amount, nonce).call(&mut context);
-        // docs:end:private_call
+        if(!fromPublicBalance) {
+            let _ = Token::at(asset_address).transfer_to_public(from, context.this_address(), amount, nonce).call(&mut context);
+        }
+        else {
+            let _ = Token::at(asset_address).transfer_in_public(from, context.this_address(), amount, nonce).enqueue(&mut context);
+        }
         let _ = Lending::at(context.this_address())
             ._repay(AztecAddress::from_field(on_behalf_of), amount, market_id, asset_address)
             .enqueue(&mut context);
@@ -95,10 +99,12 @@ pub contract Lending {
         let _ = Lending::at(context.this_address())
             ._borrow(AztecAddress::from_field(on_behalf_of), amount, market_id, asset_address)
             .enqueue(&mut context);
-        // TODO: find a fix to transfer_to_private
         let _ = Token::at(asset_address)
         .transfer_in_public(context.this_address(), to, amount, 0)
         .enqueue(&mut context);
+        // let _ = Token::at(asset_address)
+        // .transfer_to_private(to, amount)
+        // .call(&mut context);
     }
 
     #[public]
@@ -145,7 +151,6 @@ pub contract Lending {
         Lending::at(context.this_address())
             ._withdraw(AztecAddress::from_field(on_behalf_of), to, amount, market_id, collateral_asset)
             .enqueue(&mut context);
-        // TODO: find a fix to transfer_to_private
         let _ = Token::at(collateral_asset)
         .transfer_in_public(context.this_address(), to, amount, 0)
         .enqueue(&mut context);
@@ -265,12 +270,16 @@ pub contract Lending {
         on_behalf_of: Field,
         market_id: Field,
         collateral_asset: AztecAddress,
+        fromPublicBalance: bool,
     ) {
         let on_behalf_of =
             compute_identifier(secret, on_behalf_of, context.msg_sender().to_field());
-        let _res = Token::at(collateral_asset)
-            .transfer_to_public(from, context.this_address(), amount, nonce)
-            .call(&mut context);
+        if(!fromPublicBalance) {
+            let _ = Token::at(collateral_asset).transfer_to_public(from, context.this_address(), amount, nonce).call(&mut context);
+        }
+        else {
+            let _ = Token::at(collateral_asset).transfer_in_public(from, context.this_address(), amount, nonce).enqueue(&mut context);
+        }
         Lending::at(context.this_address())
             ._deposit(AztecAddress::from_field(on_behalf_of), amount, market_id,collateral_asset)
             .enqueue(&mut context);

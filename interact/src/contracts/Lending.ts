@@ -175,8 +175,8 @@ borrow_accumulators: {
     /** constructor() */
     constructor: (() => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
-    /** deposit_private(from: struct, amount: integer, nonce: field, secret: field, on_behalf_of: field, market_id: field, collateral_asset: struct) */
-    deposit_private: ((from: AztecAddressLike, amount: (bigint | number), nonce: FieldLike, secret: FieldLike, on_behalf_of: FieldLike, market_id: FieldLike, collateral_asset: AztecAddressLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+    /** deposit_private(from: struct, amount: integer, nonce: field, secret: field, on_behalf_of: field, market_id: field, collateral_asset: struct, fromPublicBalance: boolean) */
+    deposit_private: ((from: AztecAddressLike, amount: (bigint | number), nonce: FieldLike, secret: FieldLike, on_behalf_of: FieldLike, market_id: FieldLike, collateral_asset: AztecAddressLike, fromPublicBalance: boolean) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
     /** deposit_public(amount: integer, nonce: field, on_behalf_of: field, market_id: field, collateral_asset: struct) */
     deposit_public: ((amount: (bigint | number), nonce: FieldLike, on_behalf_of: FieldLike, market_id: FieldLike, collateral_asset: AztecAddressLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
@@ -199,8 +199,8 @@ borrow_accumulators: {
     /** public_dispatch(selector: field) */
     public_dispatch: ((selector: FieldLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
-    /** repay_private(from: struct, amount: integer, nonce: field, secret: field, on_behalf_of: field, market_id: field, asset_address: struct) */
-    repay_private: ((from: AztecAddressLike, amount: (bigint | number), nonce: FieldLike, secret: FieldLike, on_behalf_of: FieldLike, market_id: FieldLike, asset_address: AztecAddressLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
+    /** repay_private(from: struct, amount: integer, nonce: field, secret: field, on_behalf_of: field, market_id: field, asset_address: struct, fromPublicBalance: boolean) */
+    repay_private: ((from: AztecAddressLike, amount: (bigint | number), nonce: FieldLike, secret: FieldLike, on_behalf_of: FieldLike, market_id: FieldLike, asset_address: AztecAddressLike, fromPublicBalance: boolean) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;
 
     /** repay_public(amount: integer, nonce: field, owner: struct, market_id: field, asset_address: struct) */
     repay_public: ((amount: (bigint | number), nonce: FieldLike, owner: AztecAddressLike, market_id: FieldLike, asset_address: AztecAddressLike) => ContractFunctionInteraction) & Pick<ContractMethod, 'selector'>;

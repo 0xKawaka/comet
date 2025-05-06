@@ -1,4 +1,4 @@
-import { Contract, createPXEClient, loadContractArtifact, waitForPXE, Fr, PXE } from '@aztec/aztec.js';
+import { Contract, createPXEClient, loadContractArtifact, waitForPXE, Fr, PXE, deriveKeys, AztecAddress } from '@aztec/aztec.js';
 import { getInitialTestAccountsWallets } from '@aztec/accounts/testing';
 import { PriceFeedContract } from '@aztec/noir-contracts.js/PriceFeed';
 import { TokenContract } from '@aztec/noir-contracts.js/Token';
@@ -16,10 +16,12 @@ async function main() {
 
   const wallets = await getInitialTestAccountsWallets(pxe);
 
-  const ownerWallet = wallets[0];
-  const ownerAddress = ownerWallet.getAddress();
+  const userWallet0 = wallets[0];
+  const userAddress0 = userWallet0.getAddress();
   const userWallet = wallets[1];
   const userAddress = userWallet.getAddress();
+  const ownerWallet = wallets[2];
+  const ownerAddress = ownerWallet.getAddress();
 
   console.log('Deploying contracts...');
   // Deploy tokens in parallel
@@ -32,8 +34,28 @@ async function main() {
     PriceFeedContract.deploy(ownerWallet).send().deployed()
   ]);
 
+
   // Deploy lending contract
-  const lending = await LendingContract.deploy(ownerWallet).send().deployed();
+  const lendingSecret = Fr.random()
+  const lendingPublicKeys = (await deriveKeys(lendingSecret)).publicKeys
+
+    const lending_deployment = await LendingContract.deployWithPublicKeys(
+      lendingPublicKeys,
+      ownerWallet,
+    )
+    const lending = await lending_deployment.send().deployed()
+    const lendingPartialAddress = await lending.partialAddress
+
+    if (!lendingPartialAddress) {
+      throw new Error("Failed to get partial address")
+    }
+
+    await pxe.registerContract({ instance: lending.instance, artifact: lending.artifact })
+    await pxe.registerAccount( lendingSecret, lendingPartialAddress )
+
+
+  // // Deploy lending contract
+  // const lending = await LendingContract.deploy(ownerWallet).send().deployed();
 
   console.log(`Token1 deployed at ${token1.address.toString()}`);
   console.log(`Token2 deployed at ${token2.address.toString()}`);
@@ -43,54 +65,25 @@ async function main() {
   console.log(`PriceFeed3 deployed at ${priceFeed3.address.toString()}`);
   console.log(`Lending deployed at ${lending.address.toString()}`);
 
-  
-  console.log('Registering contract...');
-
-  const contractSecretKey = Fr.random();
-  const partialAddress = await lending.partialAddress;
-  await pxe.registerAccount(contractSecretKey, partialAddress)
-  
+  // console.log('Setting minters...');
   // await Promise.all([
-  //   pxe.registerSender(ownerWallet.getAddress()),
-  //   pxe.registerSender(userWallet.getAddress()),
-  //   pxe.registerSender(lending.address),
-
-  //   pxe.registerContract({
-  //     instance: lending.instance, 
-  //     artifact: lending.artifact,
-  //   }),
-  //   pxe.registerContract({
-  //     instance: token1.instance, 
-  //     artifact: token1.artifact,
-  //   }),
-  //   pxe.registerContract({
-  //     instance: token2.instance, 
-  //     artifact: token2.artifact,
-  //   }),
-  //   pxe.registerContract({
-  //     instance: token3.instance, 
-  //     artifact: token3.artifact,
-  //   })
+  //   token1.methods.set_minter(ownerAddress, true).send().wait(),
+  //   token2.methods.set_minter(lending.address, true).send().wait(),
+  //   token3.methods.set_minter(lending.address, true).send().wait()
   // ]);
-
-  console.log('Setting minters...');
-  await Promise.all([
-    token1.methods.set_minter(ownerAddress, true).send().wait(),
-    token2.methods.set_minter(lending.address, true).send().wait(),
-    token3.methods.set_minter(lending.address, true).send().wait()
-  ]);
 
   console.log('Minting tokens...');
   await Promise.all([
-    token1.methods.mint_to_public(ownerAddress, 1000n * 10n ** 9n).send().wait(),
-    token2.methods.mint_to_public(ownerAddress, 1000n * 10n ** 9n).send().wait(),
-    token3.methods.mint_to_public(ownerAddress, 1000n * 10n ** 9n).send().wait(),
+    token1.methods.mint_to_public(userAddress0, 1000n * 10n ** 9n).send().wait(),
+    token2.methods.mint_to_public(userAddress0, 1000n * 10n ** 9n).send().wait(),
+    token3.methods.mint_to_public(userAddress0, 1000n * 10n ** 9n).send().wait(),
     token1.methods.mint_to_public(userAddress, 1000n * 10n ** 9n).send().wait(),
     token2.methods.mint_to_public(userAddress, 1000n * 10n ** 9n).send().wait(),
     token3.methods.mint_to_public(userAddress, 1000n * 10n ** 9n).send().wait(),
-    token1.methods.mint_to_private(ownerAddress, ownerAddress, 500n * 10n ** 9n).send().wait(),
-    token2.methods.mint_to_private(ownerAddress, ownerAddress, 500n * 10n ** 9n).send().wait(),
-    token3.methods.mint_to_private(ownerAddress, ownerAddress, 500n * 10n ** 9n).send().wait(),
+    token1.methods.mint_to_private(userAddress0, userAddress0, 500n * 10n ** 9n).send().wait(),
+    token2.methods.mint_to_private(userAddress0, userAddress0, 500n * 10n ** 9n).send().wait(),
+    token3.methods.mint_to_private(userAddress0, userAddress0, 500n * 10n ** 9n).send().wait(),
+    token3.methods.mint_to_private(userAddress0, AztecAddress.fromString('0x2e9a995c0cef75815a76c1caf769a337ebfdcf65cdc1ef240adccb420682c4bf'), 500n * 10n ** 9n).send().wait(),
     priceFeed1.methods.set_price(0n, 3n * 10n ** 9n).send().wait(),
     priceFeed2.methods.set_price(0n, 2n * 10n ** 9n).send().wait(),
     priceFeed3.methods.set_price(0n, 1n * 10n ** 9n).send().wait(),
