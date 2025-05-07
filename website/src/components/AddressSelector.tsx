@@ -37,6 +37,11 @@ const AddressSelector = () => {
     setIsOpen(false);
   };
   
+  const handleOpenDropdown = () => {
+    refreshAddresses();
+    setIsOpen(!isOpen);
+  };
+  
   // Determine if selected address is public or private
   const isPublicSelected = publicAddress?.equals(selectedAddress);
   
@@ -47,7 +52,7 @@ const AddressSelector = () => {
   return (
     <div className="address-selector">
       <button 
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => handleOpenDropdown()}
         className="selected-address"
       >
         <div className="address-icon">
