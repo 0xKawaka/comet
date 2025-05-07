@@ -10,6 +10,7 @@ import { PriceFeedContract } from '@aztec/noir-contracts.js/PriceFeed';
 import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR, PERCENTAGE_PRECISION, PRICE_PRECISION_FACTOR, INTEREST_PRECISION_FACTOR } from '../utils/precisionConstants';
 import { useAbortController } from '../hooks/useAbortController';
 import { asyncWithAbort } from '../utils/asyncWithAbort';
+import { calculateInterestAccrued, calculateInterestRates } from '../utils/interestCalculations';
 
 const marketId = 1; // This should eventually be derived from the asset or configuration
 
@@ -129,60 +130,6 @@ export const LendingContext = createContext<LendingContextType>(defaultContext);
 
 export const useLending = () => useContext(LendingContext);
 
-// Define a utility function to calculate accrued interest based on rate and time
-const calculateInterestAccrued = (
-  amount: bigint, 
-  rate: number, 
-  lastUpdatedTimestamp: number | bigint
-): bigint => {
-  // Convert lastUpdatedTimestamp to number if it's a bigint
-  const lastUpdatedTs = typeof lastUpdatedTimestamp === 'bigint' 
-    ? Number(lastUpdatedTimestamp) 
-    : lastUpdatedTimestamp;
-  
-  const currentTimestamp = Math.floor(Date.now() / 1000); // Current time in seconds
-  
-  // Calculate time elapsed in seconds since last update
-  const timeElapsedSeconds = currentTimestamp - lastUpdatedTs;
-  
-  // If no time has elapsed or the timestamp is invalid, return the original amount
-  if (timeElapsedSeconds <= 0) return amount;
-  
-  // Convert rate from percentage to decimal (e.g., 5% -> 0.05)
-  // Then calculate seconds in a year and adjust rate accordingly
-  const secondsInYear = 365 * 24 * 60 * 60;
-
-  // Calculate interest factor (1 + rate * time)
-  const interestFactor = 1 + (rate * timeElapsedSeconds) / secondsInYear;
-  // Apply interest factor to the amount
-  // Convert the interest factor to a BigInt with appropriate precision
-  const factorBigInt = BigInt(Math.floor(interestFactor * Number(INTEREST_PRECISION_FACTOR)));
-  return (amount * factorBigInt) / INTEREST_PRECISION_FACTOR;
-};
-
-// Helper function to calculate interest rates based on utilization
-const calculateInterestRates = (
-  utilizationRate: number,
-  optimalRate: number,
-  underSlope: number,
-  overSlope: number
-): { borrowRate: number, supplyRate: number } => {
-  let borrowRate = 0;
-
-  if (utilizationRate < optimalRate) {
-    borrowRate = (utilizationRate * underSlope) / optimalRate;
-  } else {
-    borrowRate = underSlope + 
-      ((utilizationRate - optimalRate) * overSlope) / 
-      (1 - optimalRate);
-  }
-  
-  // Calculate supply rate
-  const supplyRate = borrowRate * utilizationRate;
-  
-  return { borrowRate, supplyRate };
-};
-
 interface LendingProviderProps {
   children: ReactNode;
 }
@@ -238,19 +185,18 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     initializeContract();
   }, [wallet]);
 
-  // Effect for initial data fetch when contract is initialized
+  // Separate effect for data fetching
   useEffect(() => {
     if (!lendingContract || !selectedAddress) {
       return;
     }
 
     const controller = new AbortController();
-    abortController.updateAddress(selectedAddress);
 
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const assetsArray = await fetchAssetData(lendingContract, controller.signal);
+        const assetsArray = await fetchAssetData(lendingContract);
         setAssets(assetsArray);
         updateUserPosition(assetsArray);
       } catch (error) {
@@ -269,20 +215,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     return () => {
       controller.abort();
     };
-  }, [lendingContract]); // Only depend on lendingContract, not selectedAddress
-
-  // Effect for handling address changes
-  useEffect(() => {
-    // Abort any previous fetch when address changes
-    if (abortController.isAborted()) {
-      console.log("Aborting previous fetch due to address change");
-    }
-    
-    // If we have a lending contract and selected address, trigger a refresh
-    if (lendingContract && selectedAddress) {
-      refreshData();
-    }
-  }, [selectedAddress]); // Only depend on selectedAddress
+  }, [lendingContract, selectedAddress]);
 
   // Add new useEffect for the interval to update interest accruals
   useEffect(() => {
@@ -450,11 +383,10 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   };
 
   // Helper function to fetch all asset data - modified to use selectedAddress
-  const fetchAssetData = async (contract: LendingContract, signal?: AbortSignal): Promise<Asset[]> => {
+  const fetchAssetData = async (contract: LendingContract): Promise<Asset[]> => {
     if (!wallet || !selectedAddress) return [];
     console.log('fetchAssetData called with:', {
       hasContract: !!contract,
-      hasSignal: !!signal,
       currentAddress: selectedAddress?.toString()
     });
     
@@ -770,7 +702,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       
       // Use our new utility to handle the async operation with abort checks
       const assetsArray = await asyncWithAbort(
-        () => fetchAssetData(lendingContract, controller.signal),
+        () => fetchAssetData(lendingContract),
         abortController,
         selectedAddress
       );
@@ -802,7 +734,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   };
 
   // Function to fetch data for a single asset
-  const fetchSingleAssetData = async (contract: LendingContract, assetId: string, signal?: AbortSignal): Promise<Asset | null> => {
+  const fetchSingleAssetData = async (contract: LendingContract, assetId: string): Promise<Asset | null> => {
     // Check that wallet is available and we have a current address reference
     if (!wallet || !selectedAddress) return null;
     
@@ -895,7 +827,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     try {
       // Use our new utility to handle the async operation with abort checks
       const updatedAsset = await asyncWithAbort(
-        () => fetchSingleAssetData(lendingContract, assetId, controller.signal),
+        () => fetchSingleAssetData(lendingContract, assetId),
         abortController,
         selectedAddress
       );
@@ -930,6 +862,20 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       }
     }
   };
+
+  // Effect for handling address changes
+  useEffect(() => {
+    // Abort any previous fetch when address changes
+    if (selectedAddress) {
+      abortController.updateAddress(selectedAddress);
+      abortController.abortCurrent();
+      
+      // If we have a lending contract and selected address, trigger a refresh
+      if (lendingContract) {
+        refreshData();
+      }
+    }
+  }, [selectedAddress]); // Only depend on selectedAddress
 
   return (
     <LendingContext.Provider
