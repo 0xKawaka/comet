@@ -34,7 +34,6 @@ async function main() {
     PriceFeedContract.deploy(ownerWallet).send().deployed()
   ]);
 
-
   // Deploy lending contract
   const lendingSecret = Fr.random()
   const lendingPublicKeys = (await deriveKeys(lendingSecret)).publicKeys
@@ -64,13 +63,6 @@ async function main() {
   console.log(`PriceFeed2 deployed at ${priceFeed2.address.toString()}`);
   console.log(`PriceFeed3 deployed at ${priceFeed3.address.toString()}`);
   console.log(`Lending deployed at ${lending.address.toString()}`);
-
-  // console.log('Setting minters...');
-  // await Promise.all([
-  //   token1.methods.set_minter(ownerAddress, true).send().wait(),
-  //   token2.methods.set_minter(lending.address, true).send().wait(),
-  //   token3.methods.set_minter(lending.address, true).send().wait()
-  // ]);
 
   console.log('Minting tokens...');
   await Promise.all([

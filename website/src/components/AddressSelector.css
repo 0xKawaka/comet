@@ -66,6 +66,27 @@
   z-index: 1000;
   padding: 0.5rem;
   overflow: hidden;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Add scrollbar styling */
+.address-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+.address-dropdown::-webkit-scrollbar-track {
+  background: rgba(54, 57, 82, 0.2);
+  border-radius: 3px;
+}
+
+.address-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(117, 49, 253, 0.5);
+  border-radius: 3px;
+}
+
+.address-dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(117, 49, 253, 0.7);
 }
 
 .address-group {

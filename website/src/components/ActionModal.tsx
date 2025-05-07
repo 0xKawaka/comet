@@ -5,8 +5,8 @@ import { tokenToUsd } from '../utils/precisionConstants';
 import { FiUnlock, FiLock } from 'react-icons/fi';
 import HealthFactorPreview from './HealthFactorPreview';
 import { AztecAddress, Fr } from '@aztec/aztec.js';
-import { generateRandomSecret, createPrivateAddress } from '../utils/privateAddresses';
-import { useWallet, useTransaction } from '../hooks';
+import { generateRandomSecret, createPrivateAddress, addPrivateAddress } from '../utils/privateAddresses';
+import { useWallet, useTransaction, usePrivateAddresses } from '../hooks';
 import './ActionModal.css';
 
 interface ActionModalProps {
@@ -36,6 +36,7 @@ const ActionModal = ({
 }: ActionModalProps) => {
   const { address: userAddress, isSecretAdrsSelected, selectedAddress, selectedAddressSecret } = useWallet();
   const { privateAddresses, refreshAddresses, isProcessing: isTransactionProcessing } = useTransaction();
+  const { addPrivateAddressWithSecret } = usePrivateAddresses();
   
   const [amount, setAmount] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
@@ -54,7 +55,7 @@ const ActionModal = ({
     if (isOpen) {
       refreshAddresses();
       // Reset the close flag whenever the modal is opened
-      setShouldCloseWhenDone(false);
+      setShouldCloseWhenDone(false);  
       
       // Initialize isPrivate based on the global state if the modal is opened
       if (isSecretAdrsSelected) {
@@ -158,14 +159,17 @@ const ActionModal = ({
           }
         } else if (showNewSecretOption && actionType !== 'repay') {
           // Create a new secret account (only for non-repay actions)
+          const newAdrsSecret = generateRandomSecret();
           if(actionType === 'deposit') {
-            secretValue = generateRandomSecret();
+            secretValue = newAdrsSecret;
           } else {
             secretValue = selectedAddressSecret;
           }
-          if(!secretValue) throw new Error('Secret value not available');
-          if (!userAddress) throw new Error('User address not available');
-          recipient = createPrivateAddress(secretValue, userAddress);
+          if(!secretValue) secretValue = 0n;
+          if (userAddress === undefined) throw new Error('User address not available');
+          recipient = createPrivateAddress(newAdrsSecret, userAddress);
+          addPrivateAddressWithSecret(newAdrsSecret);
+          refreshAddresses();
         } else if (userAddress) {
           // Use user's public address as private recipient with secret 0n
           recipient = userAddress;

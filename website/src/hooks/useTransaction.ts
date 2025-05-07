@@ -52,13 +52,6 @@ export function useTransaction() {
     marketId?: number,
     fromPublicBalance?: boolean
   ) => {
-    // If using a private address with a secret, make sure it's added to storage
-    if (isPrivate && privateRecipient && secret) {
-      // Add to storage first to ensure it's saved even if transaction fails
-      await addPrivateAddressWithSecret(secret);
-      // Refresh addresses to update the UI
-      refreshAddresses();
-    }
     
     // Get the appropriate transaction function
     const txFunction = {
