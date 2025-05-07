@@ -315,13 +315,16 @@ const ActionModal = ({
             </div>
           )}
           
-          <div className="health-factor-container">
-            <HealthFactorPreview 
-              asset={asset}
-              actionType={actionType}
-              amount={amount}
-            />
-          </div>
+          {/* Hide health factor preview for private deposits to addresses other than current user */}
+          {!(isPrivate && actionType === 'deposit' && ((modalSelectedAddress && userAddress && !modalSelectedAddress.address.equals(userAddress)) || showNewSecretOption)) && (
+            <div className="health-factor-container">
+              <HealthFactorPreview 
+                asset={asset}
+                actionType={actionType}
+                amount={amount}
+              />
+            </div>
+          )}
           
           <div className="privacy-toggle-container">
             <div className="toggle-label">

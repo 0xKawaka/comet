@@ -168,7 +168,9 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   useEffect(() => {
     if (!wallet) {
       return;
-    }
+    }    
+    console.log('Initializing lending contract');
+
 
     const initializeContract = async () => {
       try {
@@ -190,6 +192,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     if (!lendingContract || !selectedAddress) {
       return;
     }
+    console.log('Fetching asset data');
+
 
     const fetchData = async () => {
       try {
@@ -209,7 +213,21 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     };
 
     fetchData();
-  }, [lendingContract, selectedAddress]);
+  }, [lendingContract]);
+
+  // Effect for handling address changes
+  useEffect(() => {
+    // Abort any previous fetch when address changes
+    if (selectedAddress) {
+      abortController.updateAddress(selectedAddress);
+      abortController.abortCurrent();
+      
+      // If we have a lending contract and selected address, trigger a refresh
+      if (lendingContract) {
+        refreshData();
+      }
+    }
+  }, [selectedAddress]); // Only depend on selectedAddress
 
   // Add new useEffect for the interval to update interest accruals
   useEffect(() => {
@@ -692,6 +710,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       }
       
       // Use our new utility to handle the async operation with abort checks
+      console.log('Fetching asset data 2');
       const assetsArray = await asyncWithAbort(
         () => fetchAssetData(lendingContract),
         abortController,
@@ -850,20 +869,6 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       }
     }
   };
-
-  // Effect for handling address changes
-  useEffect(() => {
-    // Abort any previous fetch when address changes
-    if (selectedAddress) {
-      abortController.updateAddress(selectedAddress);
-      abortController.abortCurrent();
-      
-      // If we have a lending contract and selected address, trigger a refresh
-      if (lendingContract) {
-        refreshData();
-      }
-    }
-  }, [selectedAddress]); // Only depend on selectedAddress
 
   return (
     <LendingContext.Provider
