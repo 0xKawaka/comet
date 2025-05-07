@@ -191,8 +191,6 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       return;
     }
 
-    const controller = new AbortController();
-
     const fetchData = async () => {
       try {
         setIsLoading(true);
@@ -211,10 +209,6 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     };
 
     fetchData();
-
-    return () => {
-      controller.abort();
-    };
   }, [lendingContract, selectedAddress]);
 
   // Add new useEffect for the interval to update interest accruals
@@ -678,9 +672,6 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     // Update the current address
     abortController.updateAddress(selectedAddress);
     
-    // Get a new abort controller
-    const controller = abortController.getAbortController();
-    
     // Only set isLoading if we don't have any assets yet (initial load)
     // Otherwise use isRefreshing to indicate data is being updated
     if (assets.length === 0) {
@@ -817,9 +808,6 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     
     // Update the current address
     abortController.updateAddress(selectedAddress);
-    
-    // Get a new abort controller
-    const controller = abortController.getAbortController();
     
     // Set the refreshing state
     setIsRefreshing(true);
