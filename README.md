@@ -33,7 +33,6 @@ cd interact && npm i && npm run deploy
 ```bash
 cd website && npm i && npm run dev
 ```
-> Note that market datas take a while to load and refresh. 
 
 ## Project Structure
 
