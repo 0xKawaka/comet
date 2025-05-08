@@ -1,4 +1,4 @@
-import { useLending } from '../contexts/LendingContext';
+import { useLending } from '../hooks/useLending';
 import { formatHealthFactor, getHealthFactorClass } from '../utils/formatters';
 import { FiActivity } from 'react-icons/fi';
 import './HealthFactorIndicator.css';

@@ -67,7 +67,6 @@ export const WalletProvider = ({ children, pxeUrl }: WalletProviderProps) => {
         setIsLoading(false);
       }
     };
-
     initializeWallet();
   }, [pxeUrl]);
 

@@ -1,7 +1,7 @@
 import { ReactNode, createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { AztecAddress, Fr } from '@aztec/aztec.js';
 import { parseUnits, formatUnits } from 'ethers';
-import { useWallet, useTransaction } from '../hooks';
+import { useWallet } from '../hooks';
 import { LendingContract } from '../blockchain/contracts/Lending';
 import { TokenContract } from '@aztec/noir-contracts.js/Token';
 import devContracts from '../blockchain/dev-contracts.json';
@@ -66,7 +66,7 @@ export interface Asset {
   withdrawable_amount: bigint;
 }
 
-interface UserPosition {
+export interface UserPosition {
   health_factor: number;
   total_supplied_value: bigint;
   total_borrowed_value: bigint;
@@ -77,10 +77,6 @@ interface LendingContextType {
   userPosition: UserPosition;
   lendingContract: LendingContract | null;
   isLoading: boolean;
-  depositAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint, fromPublicBalance?: boolean) => Promise<void>;
-  withdrawAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
-  borrowAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => Promise<void>;
-  repayAsset: (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint, fromPublicBalance?: boolean) => Promise<void>;
   refreshData: () => Promise<void>;
   refreshAssetData: (assetId: string) => Promise<void>;
 }
@@ -118,10 +114,6 @@ const defaultContext: LendingContextType = {
     total_borrowed_value: 0n
   },
   isLoading: true,
-  depositAsset: async () => {},
-  withdrawAsset: async () => {},
-  borrowAsset: async () => {},
-  repayAsset: async () => {},
   refreshData: async () => {},
   refreshAssetData: async () => {}
 };
@@ -136,13 +128,6 @@ interface LendingProviderProps {
 
 export const LendingProvider = ({ children }: LendingProviderProps) => {
   const { wallet, address, selectedAddress } = useWallet();
-  const { 
-    depositAsset: txDepositAsset, 
-    withdrawAsset: txWithdrawAsset, 
-    borrowAsset: txBorrowAsset, 
-    repayAsset: txRepayAsset,
-    privateAddresses 
-  } = useTransaction();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [lendingContract, setLendingContract] = useState<LendingContract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -562,187 +547,6 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     });
   };
 
-  // Helper function to validate common transaction requirements - modified to use selectedAddress
-  const validateTransaction = (assetId: string): Asset => {
-    if (!lendingContract || !wallet || !selectedAddress) {
-      throw new Error("Wallet or lending contract not initialized");
-    }
-    
-    const asset = assets.find(a => a.id === assetId);
-    if (!asset) throw new Error("Asset not found");
-    
-    return asset;
-  };
-
-  const depositAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint, fromPublicBalance?: boolean) => {
-    try {
-      const asset = validateTransaction(assetId);
-      
-      if (!lendingContract) {
-        throw new Error("Lending contract not initialized");
-      }
-      
-      // Use the transaction context to perform the deposit
-      await txDepositAsset(
-        lendingContract, 
-        asset, 
-        amount, 
-        isPrivate,
-        privateRecipient,
-        secret,
-        marketId,
-        fromPublicBalance
-      );
-      
-      // Refresh only the specific asset data after the transaction
-      await refreshAssetData(assetId);
-    } catch (error) {
-      console.error(`Error depositing asset:`, error);
-      throw error;
-    }
-  };
-
-  const withdrawAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => {
-    try {
-      const asset = validateTransaction(assetId);
-      
-      if (!lendingContract) {
-        throw new Error("Lending contract not initialized");
-      }
-      
-      // Use the transaction context to perform the withdrawal
-      await txWithdrawAsset(
-        lendingContract, 
-        asset, 
-        amount, 
-        isPrivate,
-        privateRecipient,
-        secret,
-        marketId
-      );
-      
-      // Refresh only the specific asset data after the transaction
-      await refreshAssetData(assetId);
-    } catch (error) {
-      console.error(`Error withdrawing asset:`, error);
-      throw error;
-    }
-  };
-
-  const borrowAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint) => {
-    try {
-      const asset = validateTransaction(assetId);
-      
-      if (!lendingContract) {
-        throw new Error("Lending contract not initialized");
-      }
-      
-      // Use the transaction context to perform the borrow
-      await txBorrowAsset(
-        lendingContract, 
-        asset, 
-        amount, 
-        isPrivate,
-        privateRecipient,
-        secret,
-        marketId
-      );
-      
-      // Refresh only the specific asset data after the transaction
-      await refreshAssetData(assetId);
-    } catch (error) {
-      console.error(`Error borrowing asset:`, error);
-      throw error;
-    }
-  };
-
-  const repayAsset = async (assetId: string, amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: Fr | bigint, fromPublicBalance?: boolean) => {
-    try {
-      const asset = validateTransaction(assetId);
-      
-      if (!lendingContract) {
-        throw new Error("Lending contract not initialized");
-      }
-      
-      // Use the transaction context to perform the repay
-      await txRepayAsset(
-        lendingContract, 
-        asset, 
-        amount, 
-        isPrivate,
-        privateRecipient,
-        secret,
-        marketId,
-        fromPublicBalance
-      );
-      
-      // Refresh only the specific asset data after the transaction
-      await refreshAssetData(assetId);
-    } catch (error) {
-      console.error(`Error repaying asset:`, error);
-      throw error;
-    }
-  };
-
-  const refreshData = async () => {
-    if (!wallet || !selectedAddress || !lendingContract) return;
-    
-    // Update the current address
-    abortController.updateAddress(selectedAddress);
-    
-    // Only set isLoading if we don't have any assets yet (initial load)
-    // Otherwise use isRefreshing to indicate data is being updated
-    if (assets.length === 0) {
-      setIsLoading(true);
-    } else {
-      setIsRefreshing(true);
-    }
-    
-    try {
-      // Only clear assets on initial load, not during address switches
-      if (assets.length === 0) {
-        setAssets([]);
-        setUserPosition({
-          health_factor: Infinity,
-          total_supplied_value: 0n,
-          total_borrowed_value: 0n
-        });
-      }
-      
-      // Use our new utility to handle the async operation with abort checks
-      console.log('Fetching asset data 2');
-      const assetsArray = await asyncWithAbort(
-        () => fetchAssetData(lendingContract),
-        abortController,
-        selectedAddress
-      );
-      
-      // If null is returned, it means the operation was aborted or address changed
-      if (assetsArray === null) {
-        return;
-      }
-      
-      // Update state with processed assets
-      setAssets(assetsArray);
-      
-      // Calculate user position metrics
-      updateUserPosition(assetsArray);
-    } catch (error) {
-      // Don't report errors for aborted operations
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log("Fetch operation aborted:", error.message);
-      } else {
-        console.error("Failed to refresh lending data:", error);
-      }
-    } finally {
-      // Only set loading/refreshing to false if we're still fetching for the same address
-      if (!abortController.isAborted() && !abortController.isAddressChanged(selectedAddress)) {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
-    }
-  };
-
   // Function to fetch data for a single asset
   const fetchSingleAssetData = async (contract: LendingContract, assetId: string): Promise<Asset | null> => {
     // Check that wallet is available and we have a current address reference
@@ -818,6 +622,65 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     }
   };
 
+  const refreshData = async () => {
+    if (!wallet || !selectedAddress || !lendingContract) return;
+    
+    // Update the current address
+    abortController.updateAddress(selectedAddress);
+    
+    // Only set isLoading if we don't have any assets yet (initial load)
+    // Otherwise use isRefreshing to indicate data is being updated
+    if (assets.length === 0) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+    
+    try {
+      // Only clear assets on initial load, not during address switches
+      if (assets.length === 0) {
+        setAssets([]);
+        setUserPosition({
+          health_factor: Infinity,
+          total_supplied_value: 0n,
+          total_borrowed_value: 0n
+        });
+      }
+      
+      // Use our new utility to handle the async operation with abort checks
+      console.log('Fetching asset data 2');
+      const assetsArray = await asyncWithAbort(
+        () => fetchAssetData(lendingContract),
+        abortController,
+        selectedAddress
+      );
+      
+      // If null is returned, it means the operation was aborted or address changed
+      if (assetsArray === null) {
+        return;
+      }
+      
+      // Update state with processed assets
+      setAssets(assetsArray);
+      
+      // Calculate user position metrics
+      updateUserPosition(assetsArray);
+    } catch (error) {
+      // Don't report errors for aborted operations
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log("Fetch operation aborted:", error.message);
+      } else {
+        console.error("Failed to refresh lending data:", error);
+      }
+    } finally {
+      // Only set loading/refreshing to false if we're still fetching for the same address
+      if (!abortController.isAborted() && !abortController.isAddressChanged(selectedAddress)) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    }
+  };
+
   // Add the refreshAssetData function
   const refreshAssetData = async (assetId: string) => {
     if (!wallet || !selectedAddress || !lendingContract) {
@@ -877,10 +740,6 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         userPosition,
         lendingContract,
         isLoading: isLoading || isRefreshing, // Combine both loading states for consumers
-        depositAsset,
-        withdrawAsset,
-        borrowAsset,
-        repayAsset,
         refreshData,
         refreshAssetData
       }}

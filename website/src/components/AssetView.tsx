@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLending } from '../contexts/LendingContext';
+import { useLending } from '../hooks/useLending';
 import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
 import { tokenToUsd, usdToToken } from '../utils/precisionConstants';
 import ActionModal from './ActionModal';
@@ -17,7 +17,8 @@ interface AssetViewProps {
 type ActionType = 'deposit' | 'withdraw' | 'borrow' | 'repay';
 
 const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps) => {
-  const { assets, isLoading, depositAsset, withdrawAsset, borrowAsset, repayAsset } = useLending();
+  const { assets, isLoading, refreshAssetData } = useLending();
+  const { depositAsset, withdrawAsset, borrowAsset, repayAsset } = useTransaction();
   const [lastFoundAsset, setLastFoundAsset] = useState<any>(null);
   
   const [modalOpen, setModalOpen] = useState(false);

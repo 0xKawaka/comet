@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { LendingContext } from '../contexts/LendingContext';
+import { LendingContext, Asset, UserPosition } from '../contexts/LendingContext';
 
 /**
  * Hook to access the lending context
@@ -7,4 +7,7 @@ import { LendingContext } from '../contexts/LendingContext';
  */
 export function useLending() {
   return useContext(LendingContext);
-} 
+}
+
+// Re-export types from LendingContext for better developer experience
+export type { Asset, UserPosition }; 

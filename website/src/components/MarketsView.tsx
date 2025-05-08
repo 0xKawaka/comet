@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLending } from '../contexts/LendingContext';
+import { useLending } from '../hooks/useLending';
 import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
 import { tokenToUsd } from '../utils/precisionConstants';
 import { FiLoader, FiDollarSign, FiTrendingUp, FiPercent, FiActivity } from 'react-icons/fi';

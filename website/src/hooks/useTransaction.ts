@@ -4,6 +4,9 @@ import { TransactionContext } from '../contexts/TransactionContext';
 import { usePrivateAddresses } from './usePrivateAddresses';
 import { Asset } from '../contexts/LendingContext';
 import { LendingContract } from '../blockchain/contracts/Lending';
+import { useLending } from './useLending';
+
+const marketId = 1; // This should match the market ID used in LendingContext
 
 type TransactionType = 'deposit' | 'withdraw' | 'borrow' | 'repay';
 type TransactionFunction = (
@@ -19,7 +22,7 @@ type TransactionFunction = (
 
 /**
  * Hook combining transaction functionality with private address management
- * This avoids circular dependencies between contexts
+ * and integration with the lending context
  */
 export function useTransaction() {
   const { 
@@ -30,6 +33,8 @@ export function useTransaction() {
     repayAsset: contextRepay 
   } = useContext(TransactionContext);
   
+  const { assets, lendingContract, refreshAssetData } = useLending();
+  
   const { 
     privateAddresses, 
     addPrivateAddressWithSecret,
@@ -37,34 +42,42 @@ export function useTransaction() {
     removePrivateAddress,
     clearAllPrivateAddresses,
     refreshAddresses,
-    isLoading
+    isLoading: isLoadingPrivateAddresses
   } = usePrivateAddresses();
 
-  // Generic transaction handler that manages private addresses
+  // Helper function to validate transaction requirements
+  const validateTransaction = (assetId: string): Asset => {
+    if (!lendingContract) {
+      throw new Error("Lending contract not initialized");
+    }
+    
+    const asset = assets.find(a => a.id === assetId);
+    if (!asset) throw new Error("Asset not found");
+    
+    return asset;
+  };
+
+  // Generic transaction handler that manages private addresses and refreshes data
   const executeTransaction = async (
     txType: TransactionType,
-    lendingContract: LendingContract,
-    asset: Asset,
+    txFunction: TransactionFunction,
+    assetId: string,
     amount: string,
     isPrivate: boolean,
     privateRecipient?: AztecAddress,
     secret?: Fr | bigint,
-    marketId?: number,
     fromPublicBalance?: boolean
   ) => {
-    
-    // Get the appropriate transaction function
-    const txFunction = {
-      deposit: contextDeposit,
-      withdraw: contextWithdraw,
-      borrow: contextBorrow,
-      repay: contextRepay
-    }[txType];
-    
-    // Execute the transaction
-    if (txType === 'deposit' || txType === 'repay') {
-      // These functions need the fromPublicBalance parameter
-      return txFunction(
+    try {
+      // Validate the transaction
+      const asset = validateTransaction(assetId);
+      
+      if (!lendingContract) {
+        throw new Error("Lending contract not initialized");
+      }
+      
+      // Execute the transaction through the context
+      await txFunction(
         lendingContract,
         asset,
         amount,
@@ -74,32 +87,91 @@ export function useTransaction() {
         marketId,
         fromPublicBalance
       );
-    } else {
-      // Withdraw and borrow don't need fromPublicBalance
-      return txFunction(
-        lendingContract,
-        asset,
-        amount,
-        isPrivate,
-        privateRecipient,
-        secret,
-        marketId
-      );
+      
+      // Refresh data after transaction
+      await refreshAssetData(assetId);
+    } catch (error) {
+      console.error(`Error executing ${txType} transaction:`, error);
+      throw error;
     }
   };
 
-  // Create specialized functions that use the generic handler
-  const depositAsset: TransactionFunction = (lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId, fromPublicBalance) => 
-    executeTransaction('deposit', lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId, fromPublicBalance);
+  // Create high-level API functions that use the generic handler
+  const depositAsset = async (
+    assetId: string,
+    amount: string,
+    isPrivate: boolean,
+    privateRecipient?: AztecAddress,
+    secret?: Fr | bigint,
+    fromPublicBalance?: boolean
+  ) => {
+    return executeTransaction(
+      'deposit',
+      contextDeposit,
+      assetId,
+      amount,
+      isPrivate,
+      privateRecipient,
+      secret,
+      fromPublicBalance
+    );
+  };
   
-  const withdrawAsset: TransactionFunction = (lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId) => 
-    executeTransaction('withdraw', lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId);
+  const withdrawAsset = async (
+    assetId: string,
+    amount: string,
+    isPrivate: boolean,
+    privateRecipient?: AztecAddress,
+    secret?: Fr | bigint
+  ) => {
+    return executeTransaction(
+      'withdraw',
+      contextWithdraw,
+      assetId,
+      amount,
+      isPrivate,
+      privateRecipient,
+      secret
+    );
+  };
   
-  const borrowAsset: TransactionFunction = (lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId) => 
-    executeTransaction('borrow', lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId);
+  const borrowAsset = async (
+    assetId: string,
+    amount: string,
+    isPrivate: boolean,
+    privateRecipient?: AztecAddress,
+    secret?: Fr | bigint
+  ) => {
+    return executeTransaction(
+      'borrow',
+      contextBorrow,
+      assetId,
+      amount,
+      isPrivate,
+      privateRecipient,
+      secret
+    );
+  };
   
-  const repayAsset: TransactionFunction = (lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId, fromPublicBalance) => 
-    executeTransaction('repay', lendingContract, asset, amount, isPrivate, privateRecipient, secret, marketId, fromPublicBalance);
+  const repayAsset = async (
+    assetId: string,
+    amount: string,
+    isPrivate: boolean,
+    privateRecipient?: AztecAddress,
+    secret?: Fr | bigint,
+    fromPublicBalance?: boolean
+  ) => {
+    return executeTransaction(
+      'repay',
+      contextRepay,
+      assetId,
+      amount,
+      isPrivate,
+      privateRecipient,
+      secret,
+      fromPublicBalance
+    );
+  };
 
   return {
     // Transaction state
@@ -118,6 +190,6 @@ export function useTransaction() {
     removePrivateAddress,
     clearAllPrivateAddresses,
     refreshAddresses,
-    isProcessingPrivateAddresses: isLoading
+    isProcessingPrivateAddresses: isLoadingPrivateAddresses
   };
 } 

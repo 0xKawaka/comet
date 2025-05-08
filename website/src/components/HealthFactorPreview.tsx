@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useLending, Asset } from '../contexts/LendingContext';
+import { useLending, Asset } from '../hooks/useLending';
 import { formatTokenAmount, formatHealthFactor } from '../utils/formatters';
 import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR } from '../utils/precisionConstants';
 import { parseUnits } from 'ethers';

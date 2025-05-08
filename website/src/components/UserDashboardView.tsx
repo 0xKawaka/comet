@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useLending, Asset } from '../contexts/LendingContext';
+import { useLending, Asset } from '../hooks/useLending';
+import { useTransaction } from '../hooks';
 import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
 import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR } from '../utils/precisionConstants';
 import ActionModal from './ActionModal';
 import { FiDollarSign, FiTrendingUp, FiLoader } from 'react-icons/fi';
 import HealthFactorIndicator from './HealthFactorIndicator';
-import { useTransaction } from '../hooks';
 import { AztecAddress } from '@aztec/aztec.js';
+import { BiChevronRight } from 'react-icons/bi';
 import './UserDashboardView.css';
 
 interface UserDashboardViewProps {
@@ -29,8 +30,8 @@ const AssetInfo = ({ asset }: { asset: Asset }) => (
 );
 
 const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
-  const { assets, userPosition, isLoading, depositAsset, withdrawAsset, borrowAsset, repayAsset } = useLending();
-  const { privateAddresses } = useTransaction();
+  const { assets, userPosition, isLoading } = useLending();
+  const { depositAsset, withdrawAsset, borrowAsset, repayAsset } = useTransaction();
   
   const [modalOpen, setModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
