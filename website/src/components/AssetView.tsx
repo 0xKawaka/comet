@@ -4,7 +4,7 @@ import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/fo
 import { tokenToUsd, usdToToken } from '../utils/precisionConstants';
 import ActionModal from './ActionModal';
 import { FiArrowLeft, FiDollarSign, FiPercent, FiActivity, FiTrendingUp, FiLock, FiUnlock, FiLoader } from 'react-icons/fi';
-import { useTransaction } from '../hooks';
+import { useTransaction, useWallet } from '../hooks';
 import { AztecAddress } from '@aztec/aztec.js';
 import './AssetView.css';
 
@@ -17,6 +17,7 @@ interface AssetViewProps {
 type ActionType = 'deposit' | 'withdraw' | 'borrow' | 'repay';
 
 const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps) => {
+  const { isSecretAdrsSelected } = useWallet();
   const { assets, isLoading, refreshAssetData } = useLending();
   const { depositAsset, withdrawAsset, borrowAsset, repayAsset } = useTransaction();
   const [lastFoundAsset, setLastFoundAsset] = useState<any>(null);
@@ -24,6 +25,7 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
   const [modalOpen, setModalOpen] = useState(false);
   const [actionType, setActionType] = useState<ActionType>('deposit');
   const [maxAmount, setMaxAmount] = useState<bigint>(0n);
+  const [isPrivate, setIsPrivate] = useState(false);
 
   const getBackButtonText = () => `Back to ${previousView === 'dashboard' ? 'Dashboard' : 'Markets'}`;
 
@@ -83,15 +85,13 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
   const calculateMaxAmount = (type: ActionType): bigint => {
     switch (type) {
       case 'deposit':
-        return asset.wallet_balance;
+        return isPrivate ? asset.max_deposit_private : asset.max_deposit_public;
       case 'withdraw':
-        return availableToWithdraw;
+        return asset.max_withdraw;
       case 'borrow':
-        return availableToBorrow;
+        return asset.max_borrow;
       case 'repay':
-        return asset.user_borrowed_with_interest < asset.wallet_balance 
-          ? asset.user_borrowed_with_interest 
-          : asset.wallet_balance;
+        return isPrivate ? asset.max_repay_private : asset.max_repay_public;
       default:
         return 0n;
     }
@@ -114,9 +114,9 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
     repay: repayAsset
   };
 
-  const handleSubmit = async (amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: any) => {
+  const handleSubmit = async (amount: string, isPrivateAction: boolean, privateRecipient?: AztecAddress, secret?: any) => {
     const handler = actionHandlers[actionType];
-    await handler(asset.id, amount, isPrivate, privateRecipient, secret);
+    await handler(asset.id, amount, isPrivateAction, privateRecipient, secret);
   };
 
   // Helper to render a stat card
@@ -294,7 +294,7 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
       <h2 className="section-title">Your Position</h2>
       
       <div className="position-grid">
-        {renderActionCard(
+        {!isSecretAdrsSelected && renderActionCard(
           "Your Wallet Balance", 
           asset.wallet_balance + asset.wallet_balance_private,
           "Deposit",

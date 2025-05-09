@@ -1,9 +1,9 @@
 {
-  "0x26bfca81575f2fb7dad4d3a1e57d564adff80c7fdb4df3a26ca94ba5e5e9dc40": {
+  "0x1c9acbe39edd44317270e4827096760e454a731755a82ed147415c846578dc25": {
     "name": "token 1",
     "ticker": "TK1",
     "decimals": 9,
-    "oracle": "0x1411f093913ff33e7ea8ff1a7d2aee4e24ad7341aee2b52f22f3ba05a05c5912",
+    "oracle": "0x07cdec3549803924323f6c0cb2cf0031f9ec3c58fd8cfe7e5ac959d472a8eba8",
     "loan_to_value": 0.6,
     "is_borrowable": true,
     "deposit_cap": "1000000000000000",
@@ -11,11 +11,11 @@
     "under_optimal_slope": 2,
     "over_optimal_slope": 3
   },
-  "0x098dfda5a9ce0b40307fb5d88ff98d93be7942b78a0cd5b84249433673d6ca34": {
+  "0x1ad96b5dbd81ae93b2741efd61a76034d702c9a2c334cf03c01b07a6ab43f237": {
     "name": "token 2",
     "ticker": "TK2",
     "decimals": 9,
-    "oracle": "0x25eea39826c03c8688dfed7afb65293104db883cfb737e326eef33249b929fd0",
+    "oracle": "0x1482c21d49b882fd11b6fc19c6320115059ce9fb76ad481e184cc59c33aadc3f",
     "loan_to_value": 0.7,
     "is_borrowable": true,
     "deposit_cap": "1000000000000000",
@@ -23,11 +23,11 @@
     "under_optimal_slope": 2,
     "over_optimal_slope": 3
   },
-  "0x2d8fd825182af9a93bebdf2794acdd191406d61e9fa1cf55e388a6c386875d04": {
+  "0x106501c402cc57bacb9d50a25ad78fc8f068a1d967b9a3f37aadfd2235d51129": {
     "name": "token 3",
     "ticker": "TK3",
     "decimals": 9,
-    "oracle": "0x130cad260b5107fbc90695a374f7ce8b1bc07c3724841df2bf0e80ac4d9b07b4",
+    "oracle": "0x18598773791fe8022ce08c47d2996a68883822a814985e98930b643f57e74243",
     "loan_to_value": 0.8,
     "is_borrowable": true,
     "deposit_cap": "1000000000000000",

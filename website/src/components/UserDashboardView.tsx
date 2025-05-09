@@ -85,29 +85,16 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
   const calculateMaxAmount = (asset: Asset, actionType: ActionType): bigint => {
     switch (actionType) {
       case 'deposit':
-        return asset.wallet_balance;
+        return asset.max_deposit_public;
       
-      case 'withdraw': {
-        // Consider withdrawable amount and market liquidity constraints
-        const availableToWithdraw = asset.withdrawable_amount < asset.market_liquidity 
-          ? asset.withdrawable_amount 
-          : asset.market_liquidity;
-        return availableToWithdraw;
-      }
+      case 'withdraw':
+        return asset.max_withdraw;
       
-      case 'borrow': {
-        // Use borrowable_value_usd from the asset
-        const borrowableAmount = usdToToken(asset.borrowable_value_usd, asset.decimals, asset.price);
-        // Consider market liquidity constraints
-        return borrowableAmount < asset.market_liquidity 
-          ? borrowableAmount 
-          : asset.market_liquidity;
-      }
+      case 'borrow':
+        return asset.max_borrow;
       
       case 'repay':
-        return asset.user_borrowed_with_interest < asset.wallet_balance 
-          ? asset.user_borrowed_with_interest 
-          : asset.wallet_balance;
+        return asset.max_repay_public;
       
       default:
         return 0n;
@@ -128,13 +115,13 @@ const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
     repay: repayAsset
   };
 
-  const handleSubmit = async (amount: string, isPrivate: boolean, privateRecipient?: AztecAddress, secret?: any) => {
+  const handleSubmit = async (amount: string, isPrivateAction: boolean, privateRecipient?: AztecAddress, secret?: any) => {
     if (!modalConfig) return;
     
     const { asset, actionType } = modalConfig;
     const handler = actionHandlers[actionType];
     
-    await handler(asset.id, amount, isPrivate, privateRecipient, secret);
+    await handler(asset.id, amount, isPrivateAction, privateRecipient, secret);
   };
 
   const renderHealthFactor = () => {

@@ -64,12 +64,28 @@ export interface Asset {
     last_updated_ts: number;
   };
   withdrawable_amount: bigint;
+  // Action max amounts
+  max_deposit_public: bigint;
+  max_deposit_private: bigint;
+  max_withdraw: bigint;
+  max_borrow: bigint;
+  max_repay_public: bigint;
+  max_repay_private: bigint;
 }
 
 export interface UserPosition {
   health_factor: number;
   total_supplied_value: bigint;
   total_borrowed_value: bigint;
+}
+
+// Add interfaces for token and price feed contract mappings
+interface TokenContracts {
+  [assetId: string]: TokenContract;
+}
+
+interface PriceFeedContracts {
+  [assetId: string]: PriceFeedContract;
 }
 
 interface LendingContextType {
@@ -130,6 +146,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   const { wallet, address, selectedAddress } = useWallet();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [lendingContract, setLendingContract] = useState<LendingContract | null>(null);
+  const [tokenContracts, setTokenContracts] = useState<TokenContracts>({});
+  const [priceFeedContracts, setPriceFeedContracts] = useState<PriceFeedContracts>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [userPosition, setUserPosition] = useState<UserPosition>({
@@ -154,31 +172,61 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     if (!wallet) {
       return;
     }    
-    console.log('Initializing lending contract');
+    console.log('Initializing contracts');
 
-
-    const initializeContract = async () => {
+    const initializeContracts = async () => {
       try {
+        // Initialize lending contract
         const contract = await LendingContract.at(
           AztecAddress.fromString(devContracts.lending),
           wallet
         );
         setLendingContract(contract);
+        
+        // Initialize token and price feed contracts
+        const assetsData = allAssets as Record<string, AssetMetadata>;
+        const newTokenContracts: TokenContracts = {};
+        const newPriceFeedContracts: PriceFeedContracts = {};
+        
+        // Process assets in parallel
+        const initPromises = Object.entries(assetsData).map(async ([id, data]) => {
+          const assetAddress = AztecAddress.fromString(id);
+          const oracleAddress = AztecAddress.fromString(data.oracle);
+          
+          const [tokenContract, priceFeedContract] = await Promise.all([
+            TokenContract.at(assetAddress, wallet),
+            PriceFeedContract.at(oracleAddress, wallet)
+          ]);
+          
+          return { id, tokenContract, priceFeedContract };
+        });
+        
+        // Wait for all contracts to be initialized
+        const results = await Promise.all(initPromises);
+        
+        // Store contracts in state
+        results.forEach(({ id, tokenContract, priceFeedContract }) => {
+          newTokenContracts[id] = tokenContract;
+          newPriceFeedContracts[id] = priceFeedContract;
+        });
+        
+        setTokenContracts(newTokenContracts);
+        setPriceFeedContracts(newPriceFeedContracts);
+        
       } catch (error) {
-        console.error("Failed to initialize lending contract:", error);
+        console.error("Failed to initialize contracts:", error);
       }
     };
 
-    initializeContract();
+    initializeContracts();
   }, [wallet]);
 
   // Separate effect for data fetching
   useEffect(() => {
-    if (!lendingContract || !selectedAddress) {
+    if (!lendingContract || !selectedAddress || Object.keys(tokenContracts).length === 0 || Object.keys(priceFeedContracts).length === 0) {
       return;
     }
     console.log('Fetching asset data');
-
 
     const fetchData = async () => {
       try {
@@ -198,7 +246,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     };
 
     fetchData();
-  }, [lendingContract]);
+  }, [lendingContract, tokenContracts, priceFeedContracts]);
 
   // Effect for handling address changes
   useEffect(() => {
@@ -208,7 +256,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
       abortController.abortCurrent();
       
       // If we have a lending contract and selected address, trigger a refresh
-      if (lendingContract) {
+      if (lendingContract && Object.keys(tokenContracts).length > 0 && Object.keys(priceFeedContracts).length > 0) {
         refreshData();
       }
     }
@@ -375,13 +423,19 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         value: accumulators[1]?.value || 0n,
         last_updated_ts: Number(accumulators[1]?.last_updated_ts) || 0
       },
-      withdrawable_amount: 0n // Will be calculated in updateUserPosition
+      withdrawable_amount: 0n, // Will be calculated in updateUserPosition
+      max_deposit_public: walletBalance,
+      max_deposit_private: walletBalancePrivate,
+      max_withdraw: 0n, // Will be calculated in updateUserPosition
+      max_borrow: 0n, // Will be calculated in updateUserPosition
+      max_repay_public: userBorrowedWithInterest < walletBalance ? userBorrowedWithInterest : walletBalance,
+      max_repay_private: userBorrowedWithInterest < walletBalancePrivate ? userBorrowedWithInterest : walletBalancePrivate
     };
   };
 
-  // Helper function to fetch all asset data - modified to use selectedAddress
+  // Helper function to fetch all asset data - modified to use pre-initialized contracts
   const fetchAssetData = async (contract: LendingContract): Promise<Asset[]> => {
-    if (!wallet || !selectedAddress) return [];
+    if (!wallet || !selectedAddress || !address || Object.keys(tokenContracts).length === 0 || Object.keys(priceFeedContracts).length === 0) return [];
     console.log('fetchAssetData called with:', {
       hasContract: !!contract,
       currentAddress: selectedAddress?.toString()
@@ -390,34 +444,24 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     // Parse asset metadata from JSON
     const assetsData = allAssets as Record<string, AssetMetadata>;
     
-    // Initialize all contracts in parallel
-    const assetEntries = Object.entries(assetsData);
-    const assetAddresses = assetEntries.map(([id]) => AztecAddress.fromString(id));
-    const oracleAddresses = assetEntries.map(([_, data]) => AztecAddress.fromString(data.oracle));
-    
-    // Create token and price feed contracts in parallel
-    const tokenContractPromises = assetAddresses.map(addr => TokenContract.at(addr, wallet));
-    const priceFeedPromises = oracleAddresses.map(addr => PriceFeedContract.at(addr, wallet));
-    
-    // Wait for all contracts to be initialized
-    const [tokenContracts, priceFeedContracts] = await Promise.all([
-      Promise.all(tokenContractPromises),
-      Promise.all(priceFeedPromises)
-    ]);
-    
     // For each asset, prepare all data fetch promises
-    const assetDataPromises = assetEntries.map(async ([id, data], index) => {
-      const assetAddress = assetAddresses[index];
-      const tokenContract = tokenContracts[index];
-      const priceFeedContract = priceFeedContracts[index];
+    const assetDataPromises = Object.entries(assetsData).map(async ([id, data]) => {
+      const assetAddress = AztecAddress.fromString(id);
+      const tokenContract = tokenContracts[id];
+      const priceFeedContract = priceFeedContracts[id];
+      
+      if (!tokenContract || !priceFeedContract) {
+        console.error(`Missing contract for asset ${id}`);
+        return null;
+      }
       
       // Bundle all the async calls for this asset
       const result = await Promise.all([
-        // Get wallet balances
-        tokenContract.methods.balance_of_public(selectedAddress).simulate(),
-        tokenContract.methods.balance_of_private(selectedAddress).simulate(),
+        // Get wallet balances - use address instead of selectedAddress for balances
+        tokenContract.methods.balance_of_public(address).simulate(),
+        tokenContract.methods.balance_of_private(address).simulate(),
         
-        // Get user position
+        // Get user position - keep using selectedAddress for everything else
         contract.methods.get_position(selectedAddress, marketId, assetAddress).simulate(),
         
         // Get total supplied and borrowed
@@ -465,8 +509,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     // Wait for all asset data to be fetched
     const assetsResults = await Promise.all(assetDataPromises);
     
-    // Process results into Asset objects
-    return assetsResults;
+    // Filter out null results (if any) and return valid assets
+    return assetsResults.filter((asset): asset is Asset => asset !== null);
   };
 
   // Helper function to calculate and update user position
@@ -516,14 +560,20 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         asset.borrowable_value_usd = marketLiquidityUsd < maxBorrowableUsd 
           ? marketLiquidityUsd 
           : maxBorrowableUsd;
+          
+        // Convert borrowable USD value to token amount
+        const borrowableAmount = usdToToken(asset.borrowable_value_usd, asset.decimals, asset.price);
+        asset.max_borrow = borrowableAmount < asset.market_liquidity ? borrowableAmount : asset.market_liquidity;
       } else {
         asset.borrowable_value_usd = 0n;
+        asset.max_borrow = 0n;
       }
 
       // Update withdrawable amount
       if (asset.user_supplied_with_interest === 0n) {
         // If user hasn't supplied this asset, they can't withdraw any
         asset.withdrawable_amount = 0n;
+        asset.max_withdraw = 0n;
       } else {
         // Convert asset-specific supplied value to USD
         const assetSuppliedValueUsd = tokenToUsd(
@@ -537,7 +587,21 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         } else {
           asset.withdrawable_amount = asset.user_supplied_with_interest;
         }
+        
+        // Set max_withdraw based on withdrawable_amount and market_liquidity
+        asset.max_withdraw = asset.withdrawable_amount < asset.market_liquidity 
+          ? asset.withdrawable_amount 
+          : asset.market_liquidity;
       }
+      
+      // Update max repay amounts in case user borrowed/repaid outside of our app
+      asset.max_repay_public = asset.user_borrowed_with_interest < asset.wallet_balance 
+        ? asset.user_borrowed_with_interest 
+        : asset.wallet_balance;
+      
+      asset.max_repay_private = asset.user_borrowed_with_interest < asset.wallet_balance_private 
+        ? asset.user_borrowed_with_interest 
+        : asset.wallet_balance_private;
     }
     
     setUserPosition({
@@ -550,7 +614,16 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   // Function to fetch data for a single asset
   const fetchSingleAssetData = async (contract: LendingContract, assetId: string): Promise<Asset | null> => {
     // Check that wallet is available and we have a current address reference
-    if (!wallet || !selectedAddress) return null;
+    if (!wallet || !selectedAddress || !address) return null;
+    
+    // Get the contracts for this asset
+    const tokenContract = tokenContracts[assetId];
+    const priceFeedContract = priceFeedContracts[assetId];
+    
+    if (!tokenContract || !priceFeedContract) {
+      console.error(`Missing contracts for asset ${assetId}`);
+      return null;
+    }
     
     // Parse asset metadata from JSON
     const assetsData = allAssets as Record<string, AssetMetadata>;
@@ -563,13 +636,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
     }
     
     const assetAddress = AztecAddress.fromString(assetId);
-    const oracleAddress = AztecAddress.fromString(data.oracle);
     
     try {
-      // Create token and price feed contracts
-      const tokenContract = await TokenContract.at(assetAddress, wallet);
-      const priceFeedContract = await PriceFeedContract.at(oracleAddress, wallet);
-      
       // Bundle all the async calls for this asset
       const [
         walletBalance,
@@ -580,11 +648,11 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
         priceResponse,
         accumulators
       ] = await Promise.all([
-        // Get wallet balances
-        tokenContract.methods.balance_of_public(selectedAddress).simulate(),
-        tokenContract.methods.balance_of_private(selectedAddress).simulate(),
+        // Get wallet balances - use address instead of selectedAddress
+        tokenContract.methods.balance_of_public(address).simulate(),
+        tokenContract.methods.balance_of_private(address).simulate(),
         
-        // Get user position
+        // Get user position - keep using selectedAddress
         contract.methods.get_position(selectedAddress, marketId, assetAddress).simulate(),
         
         // Get total supplied and borrowed
@@ -623,7 +691,7 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
   };
 
   const refreshData = async () => {
-    if (!wallet || !selectedAddress || !lendingContract) return;
+    if (!wallet || !selectedAddress || !lendingContract || Object.keys(tokenContracts).length === 0) return;
     
     // Update the current address
     abortController.updateAddress(selectedAddress);
@@ -683,8 +751,8 @@ export const LendingProvider = ({ children }: LendingProviderProps) => {
 
   // Add the refreshAssetData function
   const refreshAssetData = async (assetId: string) => {
-    if (!wallet || !selectedAddress || !lendingContract) {
-      console.error("Cannot refresh asset data: wallet, selectedAddress, or lendingContract is not initialized");
+    if (!wallet || !selectedAddress || !lendingContract || !tokenContracts[assetId] || !priceFeedContracts[assetId]) {
+      console.error("Cannot refresh asset data: required contracts not initialized");
       return;
     }
     

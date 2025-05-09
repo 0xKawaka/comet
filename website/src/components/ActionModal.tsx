@@ -56,32 +56,52 @@ const ActionModal = ({
       refreshAddresses();
       // Reset the close flag whenever the modal is opened
       setShouldCloseWhenDone(false);  
-      
-      // Initialize isPrivate based on the global state if the modal is opened
-      if (isSecretAdrsSelected) {
-        setIsPrivate(true);
-      }
+    
     }
-  }, [isOpen, refreshAddresses, isSecretAdrsSelected]);
+  }, [isOpen, refreshAddresses]);
+
+  // Always force isPrivate to true if isSecretAdrsSelected is true
+  useEffect(() => {
+    if (isSecretAdrsSelected) {
+      setIsPrivate(true);
+    } else if (actionType !== 'deposit') {
+      // Force isPrivate to false for non-deposit actions when not using a secret address
+      setIsPrivate(false);
+    }
+  }, [isSecretAdrsSelected, actionType]);
 
   // Separate effect to handle private address matching
   useEffect(() => {
     if (isOpen && isSecretAdrsSelected && selectedAddress && selectedAddressSecret !== undefined) {
-      const privateAddrMatch = privateAddresses.find(addr => 
-        addr.address.equals(selectedAddress) && addr.secret === selectedAddressSecret
-      );
-      
-      if (privateAddrMatch) {
-        setModalSelectedAddress(privateAddrMatch);
-        setShowNewSecretOption(false);
-      }
+      setModalSelectedAddress(null);
+      setShowNewSecretOption(false);
+      // if (actionType === 'deposit' || actionType === 'borrow') {
+      //   setModalSelectedAddress(null);
+      //   setShowNewSecretOption(false);
+      // } else {
+      //   // For other actions, try to find matching private address
+      //   const privateAddrMatch = privateAddresses.find(addr => 
+      //     addr.address.equals(selectedAddress) && addr.secret === selectedAddressSecret
+      //   );
+        
+      //   if (privateAddrMatch) {
+      //     setModalSelectedAddress(privateAddrMatch);
+      //     setShowNewSecretOption(false);
+      //   }
+      // }
     }
-  }, [isOpen, isSecretAdrsSelected, selectedAddress, selectedAddressSecret, privateAddresses]);
+  }, [isOpen, isSecretAdrsSelected, selectedAddress, selectedAddressSecret, privateAddresses, actionType]);
 
   useEffect(() => {
-    // Update max amount when privacy toggle changes, but only for deposit action
-    if (actionType === 'deposit' || actionType === 'repay') {
-      setCurrentMaxAmount(isPrivate && !isSecretAdrsSelected ? asset.wallet_balance_private : asset.wallet_balance);
+    // Update max amount when privacy toggle changes
+    if (actionType === 'deposit') {
+      setCurrentMaxAmount(isPrivate ? asset.max_deposit_private : asset.max_deposit_public);
+    } else if (actionType === 'repay') {
+      setCurrentMaxAmount(isPrivate ? asset.max_repay_private : asset.max_repay_public);
+    } else if (actionType === 'withdraw') {
+      setCurrentMaxAmount(asset.max_withdraw);
+    } else if (actionType === 'borrow') {
+      setCurrentMaxAmount(asset.max_borrow);
     } else {
       setCurrentMaxAmount(maxAmount);
     }
@@ -220,7 +240,9 @@ const ActionModal = ({
             <div className="address-value">{userAddress?.toString().substring(0, 10)}...</div>
           </div>
           
-          {actionType !== 'repay' && (
+          {/* Only show New Secret Account and private addresses options when not using a secret address selection 
+              for supply and borrow actions */}
+          {actionType !== 'repay' && !isSecretAdrsSelected && (
             <div 
               className={`private-address-option ${showNewSecretOption ? 'selected' : ''}`}
               onClick={handleCreateNewSecret}
@@ -230,7 +252,8 @@ const ActionModal = ({
             </div>
           )}
           
-          {privateAddresses.map((addr, index) => (
+          {/* Only show private addresses list when not using a secret address selection for supply and borrow actions */}
+          {!isSecretAdrsSelected && privateAddresses.map((addr, index) => (
             <div 
               key={index}
               className={`private-address-option ${modalSelectedAddress?.address.equals(addr.address) ? 'selected' : ''}`}
@@ -294,7 +317,17 @@ const ActionModal = ({
                 const newValue = e.target.value;
                 const regex = /^(\d*\.?\d*)$/;
                 if (newValue === '' || regex.test(newValue)) {
-                  setAmount(newValue);
+                  // Check if the new value exceeds max amount
+                  if (newValue === '') {
+                    setAmount(newValue);
+                  } else {
+                    const maxFormatted = formatTokenAmount(currentMaxAmount, asset.decimals);
+                    if (parseFloat(newValue) <= parseFloat(maxFormatted)) {
+                      setAmount(newValue);
+                    } else {
+                      setAmount(maxFormatted);
+                    }
+                  }
                 }
               }}
               disabled={isSubmitting}
@@ -330,20 +363,37 @@ const ActionModal = ({
             </div>
           )}
           
-          <div className="privacy-toggle-container">
-            <div className="toggle-label">
-              Make this transaction private
+          {isSecretAdrsSelected ? (
+            <div className="privacy-info-container">
+              <div className="privacy-info">
+                <FiLock size={14} className="privacy-lock-icon" />
+                This transaction is private
+              </div>
             </div>
-            <label className="toggle-switch">
-              <input 
-                type="checkbox" 
-                checked={isPrivate} 
-                onChange={() => setIsPrivate(!isPrivate)}
-                disabled={isSubmitting}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-          </div>
+          ) : actionType === 'deposit' ? (
+            <div className="privacy-toggle-container">
+              <div className="toggle-label">
+                <FiLock size={14} className="privacy-lock-icon" />
+                Make this transaction private
+              </div>
+              <label className="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  checked={isPrivate} 
+                  onChange={() => setIsPrivate(!isPrivate)}
+                  disabled={isSubmitting}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+          ) : (
+            <div className="privacy-info-container">
+              <div className="privacy-info">
+                <FiUnlock size={14} className="privacy-lock-icon" />
+                This transaction is public
+              </div>
+            </div>
+          )}
           
           {renderPrivateAddressOptions()}
           

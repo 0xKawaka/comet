@@ -99,12 +99,12 @@ pub contract Lending {
         let _ = Lending::at(context.this_address())
             ._borrow(AztecAddress::from_field(on_behalf_of), amount, market_id, asset_address)
             .enqueue(&mut context);
-        let _ = Token::at(asset_address)
-        .transfer_in_public(context.this_address(), to, amount, 0)
-        .enqueue(&mut context);
         // let _ = Token::at(asset_address)
-        // .transfer_to_private(to, amount)
-        // .call(&mut context);
+        // .transfer_in_public(context.this_address(), to, amount, 0)
+        // .enqueue(&mut context);
+        let _ = Token::at(asset_address)
+        .transfer_to_private(to, amount)
+        .call(&mut context);
     }
 
     #[public]
@@ -151,12 +151,12 @@ pub contract Lending {
         Lending::at(context.this_address())
             ._withdraw(AztecAddress::from_field(on_behalf_of), to, amount, market_id, collateral_asset)
             .enqueue(&mut context);
-        let _ = Token::at(collateral_asset)
-        .transfer_in_public(context.this_address(), to, amount, 0)
-        .enqueue(&mut context);
         // let _ = Token::at(collateral_asset)
-        // .transfer_to_private(to, amount)
-        // .call(&mut context);
+        // .transfer_in_public(context.this_address(), to, amount, 0)
+        // .enqueue(&mut context);
+        let _ = Token::at(collateral_asset)
+        .transfer_to_private(to, amount)
+        .call(&mut context);
     }
 
     #[public]
