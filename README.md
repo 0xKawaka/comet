@@ -33,7 +33,6 @@ cd interact && npm i && npm run deploy
 ```bash
 cd website && npm i && npm run dev
 ```
-> Private flow isn't fully figured out. You'll run in a bug if you try to deposit or repay from a secret address.
 
 ## Project Structure
 
