@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLending, Asset } from '../hooks/useLending';
-import { useTransaction } from '../hooks';
+import { useTransaction, useWallet } from '../hooks';
 import { formatTokenAmount, formatUsdValue, formatPercentage } from '../utils/formatters';
 import { tokenToUsd, usdToToken, applyLtv, PERCENTAGE_PRECISION_FACTOR } from '../utils/precisionConstants';
 import ActionModal from './ActionModal';
@@ -32,6 +32,7 @@ const AssetInfo = ({ asset }: { asset: Asset }) => (
 const UserDashboardView = ({ onAssetSelect }: UserDashboardViewProps) => {
   const { assets, userPosition, isLoading } = useLending();
   const { depositAsset, withdrawAsset, borrowAsset, repayAsset } = useTransaction();
+  const { isSecretAdrsSelected } = useWallet();
   
   const [modalOpen, setModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<{

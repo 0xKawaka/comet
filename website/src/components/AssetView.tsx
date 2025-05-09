@@ -294,7 +294,7 @@ const AssetView = ({ assetId, onBack, previousView = 'markets' }: AssetViewProps
       <h2 className="section-title">Your Position</h2>
       
       <div className="position-grid">
-        {!isSecretAdrsSelected && renderActionCard(
+        {renderActionCard(
           "Your Wallet Balance", 
           asset.wallet_balance + asset.wallet_balance_private,
           "Deposit",

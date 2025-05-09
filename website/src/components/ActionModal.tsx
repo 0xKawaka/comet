@@ -226,7 +226,7 @@ const ActionModal = ({
     return (
       <div className="private-address-section">
         <h3 className="private-address-title">
-          {actionType === 'repay' ? 'From Account' : 'Private Recipient'}
+          {actionType === 'repay' || (actionType === 'deposit' && isSecretAdrsSelected) ? 'From Account' : 'Private Recipient'}
         </h3>
         <div className="private-address-options">
           <div 
@@ -342,7 +342,7 @@ const ActionModal = ({
             </button>
           </div>
           
-          {actionType === 'deposit' && (
+          {(actionType === 'deposit' || actionType === 'repay') && (
             <div className="wallet-balance-section">
               <h3 className="wallet-balance-title">Wallet Balance</h3>
               <div className="wallet-balance-container">

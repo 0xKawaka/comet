@@ -128,7 +128,7 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
     fromPublicBalance = false
   ) => {
     const effectiveAddress = getEffectiveAddress();
-    if (!wallet || !effectiveAddress) {
+    if (!wallet || !effectiveAddress || !address) {
       throw new Error("Wallet not initialized");
     }
 
@@ -145,8 +145,9 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
           tokenContract, 
           lendingContract, 
           amountBigInt, 
-          nonce, 
-          true
+          nonce,
+          true,
+          address
         );
         
         if (!transferToPublicAuthwit) {
@@ -160,7 +161,8 @@ export const TransactionProvider = ({ children }: TransactionProviderProps) => {
         const secretValue = secret !== undefined ? secret : 0n;
         
         await lendingContract.methods.deposit_private(
-          effectiveAddress,
+          // effectiveAddress,
+          address,
           amountBigInt,
           nonce,
           secretValue,
