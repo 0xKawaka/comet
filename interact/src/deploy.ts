@@ -19,12 +19,11 @@ async function main() {
   const userWallet0 = wallets[0];
   const userAddress0 = userWallet0.getAddress();
   const userWallet = wallets[1];
-  const userAddress = userWallet.getAddress();
+  const userAddress1 = userWallet.getAddress();
   const ownerWallet = wallets[2];
   const ownerAddress = ownerWallet.getAddress();
 
   console.log('Deploying contracts...');
-  // Deploy tokens in parallel
   const [token1, token2, token3, priceFeed1, priceFeed2, priceFeed3] = await Promise.all([
     TokenContract.deploy(ownerWallet, ownerAddress, 'token 1', 'TK1', 9).send().deployed(),
     TokenContract.deploy(ownerWallet, ownerAddress, 'token 2', 'TK2', 9).send().deployed(),
@@ -38,19 +37,19 @@ async function main() {
   const lendingSecret = Fr.random()
   const lendingPublicKeys = (await deriveKeys(lendingSecret)).publicKeys
 
-    const lending_deployment = await LendingContract.deployWithPublicKeys(
-      lendingPublicKeys,
-      ownerWallet,
-    )
-    const lending = await lending_deployment.send().deployed()
-    const lendingPartialAddress = await lending.partialAddress
+  const lending_deployment = LendingContract.deployWithPublicKeys(
+    lendingPublicKeys,
+    ownerWallet,
+  )
+  const lending = await lending_deployment.send().deployed()
+  const lendingPartialAddress = await lending.partialAddress
 
-    if (!lendingPartialAddress) {
-      throw new Error("Failed to get partial address")
-    }
+  if (!lendingPartialAddress) {
+    throw new Error("Failed to get partial address")
+  }
 
-    await pxe.registerContract({ instance: lending.instance, artifact: lending.artifact })
-    await pxe.registerAccount( lendingSecret, lendingPartialAddress )
+  await pxe.registerContract({ instance: lending.instance, artifact: lending.artifact })
+  await pxe.registerAccount( lendingSecret, lendingPartialAddress )
 
 
   // // Deploy lending contract
@@ -69,13 +68,12 @@ async function main() {
     token1.methods.mint_to_public(userAddress0, 1000n * 10n ** 9n).send().wait(),
     token2.methods.mint_to_public(userAddress0, 1000n * 10n ** 9n).send().wait(),
     token3.methods.mint_to_public(userAddress0, 1000n * 10n ** 9n).send().wait(),
-    token1.methods.mint_to_public(userAddress, 1000n * 10n ** 9n).send().wait(),
-    token2.methods.mint_to_public(userAddress, 1000n * 10n ** 9n).send().wait(),
-    token3.methods.mint_to_public(userAddress, 1000n * 10n ** 9n).send().wait(),
+    token1.methods.mint_to_public(userAddress1, 1000n * 10n ** 9n).send().wait(),
+    token2.methods.mint_to_public(userAddress1, 1000n * 10n ** 9n).send().wait(),
+    token3.methods.mint_to_public(userAddress1, 1000n * 10n ** 9n).send().wait(),
     token1.methods.mint_to_private(userAddress0, userAddress0, 500n * 10n ** 9n).send().wait(),
     token2.methods.mint_to_private(userAddress0, userAddress0, 500n * 10n ** 9n).send().wait(),
     token3.methods.mint_to_private(userAddress0, userAddress0, 500n * 10n ** 9n).send().wait(),
-    token3.methods.mint_to_private(userAddress0, AztecAddress.fromString('0x2e9a995c0cef75815a76c1caf769a337ebfdcf65cdc1ef240adccb420682c4bf'), 500n * 10n ** 9n).send().wait(),
     priceFeed1.methods.set_price(0n, 3n * 10n ** 9n).send().wait(),
     priceFeed2.methods.set_price(0n, 2n * 10n ** 9n).send().wait(),
     priceFeed3.methods.set_price(0n, 1n * 10n ** 9n).send().wait(),
@@ -87,7 +85,6 @@ async function main() {
   console.log('Writing files...');
   const addresses = { lending: lending.address.toString() };
 
-  // Write files synchronously
   writeFileSync('contracts.json', JSON.stringify(addresses, null, 2));
   writeFileSync('../website/src/blockchain/dev-contracts.json', JSON.stringify(addresses, null, 2));
   
