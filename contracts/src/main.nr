@@ -7,19 +7,41 @@ use dep::aztec::macros::aztec;
 
 #[aztec]
 pub contract Lending {
-    use dep::aztec::prelude::{AztecAddress, Map, PublicMutable};
-
     use crate::asset::Asset;
     use crate::helpers::{compute_identifier};
     use crate::position::Position;
+    use crate::accumulator::Accumulator;
+
+    use dep::aztec::prelude::{AztecAddress, Map, PublicMutable};
     use dep::price_feed::PriceFeed;
     use dep::token::Token;
-    use crate::accumulator::Accumulator;
     use dep::aztec::macros::{
         functions::{initializer, internal, private, public, view, utility},
         storage::storage,
     };
     use dep::aztec::protocol_types::traits::{FromField, ToField};
+    use dep::aztec::{
+        event::event_interface::EventInterface,
+        macros::events::event,
+        messages::logs::{
+            event::encode_and_encrypt_event_unconstrained,
+            note::{encode_and_encrypt_note, encode_and_encrypt_note_unconstrained},
+        },
+        unencrypted_logs::unencrypted_event_emission::encode_event,
+        protocol_types::traits::Serialize,
+    };
+
+    #[derive(Serialize)]
+    #[event]
+    struct PositionUpdate {
+        user: AztecAddress,
+        market_id: Field,
+        asset_address: AztecAddress,
+        scaled_deposited: u128,
+        scaled_borrowed: u128,
+        deposit_accumulator: Accumulator,
+        borrow_accumulator: Accumulator,
+    }
 
     #[storage]
     struct Storage<Context> {
@@ -32,6 +54,17 @@ pub contract Lending {
         scaled_total_borrowed_assets: Map<Field, Map<AztecAddress, PublicMutable<u128, Context>, Context>, Context>, // static debt
         deposit_accumulators: Map<Field, Map<AztecAddress, PublicMutable<Accumulator, Context>, Context>, Context>,
         borrow_accumulators: Map<Field, Map<AztecAddress, PublicMutable<Accumulator, Context>, Context>, Context>,
+    }
+
+    #[public]
+    #[internal]
+    fn emit_position_update(market_id: Field, asset_address: AztecAddress, user: AztecAddress) {
+        let scaled_deposited = storage.scaled_deposited_assets.at(market_id).at(asset_address).at(user).read();
+        let scaled_borrowed = storage.scaled_borrowed_assets.at(market_id).at(asset_address).at(user).read();
+        let deposit_accumulator = storage.deposit_accumulators.at(market_id).at(asset_address).read();
+        let borrow_accumulator = storage.borrow_accumulators.at(market_id).at(asset_address).read();
+        let event = PositionUpdate { user, market_id, asset_address, scaled_deposited, scaled_borrowed, deposit_accumulator, borrow_accumulator };
+        event.emit(encode_event(&mut context));
     }
 
     #[private]
@@ -91,6 +124,8 @@ pub contract Lending {
         let scaled_total_borrowed_asset_loc = storage.scaled_total_borrowed_assets.at(market_id).at(asset_address);
         let scaled_total_borrowed_asset: u128 = scaled_total_borrowed_asset_loc.read();
         scaled_total_borrowed_asset_loc.write(scaled_total_borrowed_asset - scaled_amount);
+
+        Lending::at(context.this_address()).emit_position_update(market_id, asset_address, owner).call(&mut context);
     }
 
      #[private]
@@ -143,6 +178,8 @@ pub contract Lending {
         let scaled_total_borrowed_asset_loc = storage.scaled_total_borrowed_assets.at(market_id).at(asset_address);
         let scaled_total_borrowed_asset: u128 = scaled_total_borrowed_asset_loc.read();
         scaled_total_borrowed_asset_loc.write(scaled_total_borrowed_asset + scaled_amount);
+
+        Lending::at(context.this_address()).emit_position_update(market_id, asset_address, owner).call(&mut context);
     }
 
     #[private]
@@ -203,6 +240,8 @@ pub contract Lending {
         let scaled_total_deposited_asset_loc = storage.scaled_total_deposited_assets.at(market_id).at(collateral_asset);
         let scaled_total_deposited_asset: u128 = scaled_total_deposited_asset_loc.read();
         scaled_total_deposited_asset_loc.write(scaled_total_deposited_asset - scaled_withdraw_amount);
+
+        Lending::at(context.this_address()).emit_position_update(market_id, collateral_asset, owner).call(&mut context);
     }
 
     #[public]
@@ -326,6 +365,8 @@ pub contract Lending {
         let scaled_total_deposited_asset_loc = storage.scaled_total_deposited_assets.at(market_id).at(collateral_asset);
         let scaled_total_deposited_asset: u128 = scaled_total_deposited_asset_loc.read();
         scaled_total_deposited_asset_loc.write(scaled_total_deposited_asset + scaled_amount);
+
+        Lending::at(context.this_address()).emit_position_update(market_id, collateral_asset, owner).call(&mut context);
     }
 
     #[public]
