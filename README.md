@@ -1,4 +1,4 @@
-# Comet | Lend and borrow on Aztec
+# Comet | Lend and borrow on Aztec (https://x.com/Comet_fi)
 Privacy preserving and decentralized multi-markets overcollaterized lending protocol.
 
 Born during the NoirHack.
