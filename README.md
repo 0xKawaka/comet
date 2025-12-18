@@ -12,7 +12,8 @@ Born during the NoirHack.
 ## Quick Start
 
 ### Prerequisites
-- Aztec sandbox: install via `bash -i <(curl -s https://install.aztec.network)`
+- Node.js 18
+- Aztec sandbox: install via `aztec-up 0.86.0`
 
 ### Running Locally
 

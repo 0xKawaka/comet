@@ -5,6 +5,9 @@
     "@aztec/noir-contracts.js": "^0.86.0",
     "@aztec/types": "^0.76.4"
   },
+  "engines": {
+    "node": ">=18 <20"
+  },
   "type": "module",
   "devDependencies": {
     "@types/node": "^22.14.1",
