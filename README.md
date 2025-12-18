@@ -21,6 +21,7 @@ Born during the NoirHack.
 ```bash
 aztec start --sandbox
 ```
+> Wait a minute for the sandbox to initialize.
 2. **Deploy and Setup Contracts**
 ```bash
 cd interact && npm i && npm run deploy
